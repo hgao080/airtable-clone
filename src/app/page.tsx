@@ -6,6 +6,7 @@ import { api, HydrateClient } from "~/trpc/server";
 import { Base } from "./_components/base";
 import { Header } from "./_components/dashboard/header";
 import { Sidebar } from "./_components/dashboard/sidebar";
+import { CreationButtons } from "./_components/dashboard/creationButtons";
 
 export default async function Home() {
   const hello = await api.post.hello({ text: "from tRPC" });
@@ -22,8 +23,9 @@ export default async function Home() {
           <Header />
           <main className="flex flex-1 h-full">
             <Sidebar />
-            <div className="flex flex-1">
-              Home
+            <div className="flex flex-col flex-1 p-12 py-7">
+              <h1 className="font-bold text-[1.7rem] mb-6">Home</h1>
+              <CreationButtons />
             </div>
           </main>
         </div>

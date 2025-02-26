@@ -29,7 +29,7 @@ export async function Header() {
         </div>
 
         <div className="flex flex-[0.75] max-w-[22rem] items-center justify-between">
-          <div className="flex h-[60%] flex-auto items-center justify-between rounded-full border border-gray-200 px-4 text-[0.8rem] shadow-sm hover:border-gray-300 hover:shadow-xl">
+          <div className="flex h-[60%] flex-auto items-center justify-between rounded-full border border-gray-200 px-4 text-[0.8rem] shadow-sm hover:border-gray-300 hover:shadow-md">
             <div className="flex gap-2">
               <CiSearch size={17} className="translate-y-[1px] text-black" />
               <p className="translate-y-[1px] text-gray-800">Search...</p>
