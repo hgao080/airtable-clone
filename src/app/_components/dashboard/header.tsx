@@ -10,7 +10,7 @@ export async function Header() {
   const session = await auth();
 
   return (
-    <header className="flex h-[56px] w-full">
+    <header className="flex h-[56px] w-full border-b border-b-gray-300">
       <nav className="flex w-full justify-center px-[0.75rem]">
         <div className="flex flex-1 items-center gap-5">
           <button>
@@ -21,15 +21,16 @@ export async function Header() {
             <Image
               src="/airtableIcon.webp"
               alt="Airtable Logo"
+              className="translate-y-[1px]"
               width={102}
               height={0}
             />
           </Link>
         </div>
 
-        <div className="flex flex-[0.75] items-center justify-between">
+        <div className="flex flex-[0.75] max-w-[22rem] items-center justify-between">
           <div className="flex h-[60%] flex-auto items-center justify-between rounded-full border border-gray-200 px-4 text-[0.8rem] shadow-sm hover:border-gray-300 hover:shadow-xl">
-            <div className="flex gap-1">
+            <div className="flex gap-2">
               <CiSearch size={17} className="translate-y-[1px] text-black" />
               <p className="translate-y-[1px] text-gray-800">Search...</p>
             </div>
