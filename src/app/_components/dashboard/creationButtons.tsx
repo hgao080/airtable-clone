@@ -1,8 +1,23 @@
+"use client";
+
 import { PiStarFourBold, PiTableLight, PiGridFourLight } from "react-icons/pi";
 import { GoArrowUp } from "react-icons/go";
+import { useRouter } from "next/navigation";
 
+import { api } from "~/trpc/react";
 
 export function CreationButtons() {
+    const router = useRouter();
+
+    const createBase = api.base.createBase.useMutation({
+        onSuccess: (newBase) => {
+            router.push(`/${newBase.id}`);
+        },
+    })
+
+    const handleCreateBase = () => {
+        createBase.mutate({ name: "Unititled Base" });
+    }
 
     return (
         <div className="flex gap-4">
@@ -30,7 +45,7 @@ export function CreationButtons() {
                 <p className="text-gray-500 text-[0.8rem]">Easily migrate your existing projects in just a few minutes.</p>
             </button>
 
-            <button className="flex flex-col flex-auto gap-1 border border-gray-300 p-4 rounded-lg shadow-sm hover:shadow-md bg-white">
+            <button onClick={handleCreateBase} className="flex flex-col flex-auto gap-1 border border-gray-300 p-4 rounded-lg shadow-sm hover:shadow-md bg-white">
                 <div className="flex items-center gap-2">
                     <PiTableLight size={20} className="text-blue-800 " />
                     <h2 className="text-[0.9rem] font-medium">Start from scratch</h2>
