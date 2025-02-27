@@ -9,7 +9,7 @@ export function Bases() {
     return (
         <div className="grid grid-cols-5 gap-3 mt-2">
             {bases?.map((base) => (
-                <BaseCard key={base.id} baseName={base.name} />
+                <BaseCard key={base.id} baseName={base.name} baseId={base.id}/>
             ))}
         </div>
     )

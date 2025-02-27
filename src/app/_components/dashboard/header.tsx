@@ -40,14 +40,14 @@ export async function Header() {
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-4 pr-1">
-            <div className="flex items-center gap-1 px-3 py-1 hover:bg-gray-200 rounded-full">
+            <button className="flex items-center gap-1 px-3 py-1 hover:bg-gray-200 rounded-full">
                 <IoHelpCircleOutline size={16} className="text-black" />
                 <p className="text-[0.8rem]">Help</p>
-            </div>
+            </button>
 
-          <div className="border border-gray-200 rounded-full p-[0.4rem] hover:bg-gray-200">
+          <button className="border border-gray-200 rounded-full p-[0.4rem] hover:bg-gray-200">
             <PiBell size={16} className="text-black translate-y-[1px]" />
-          </div>
+          </button>
 
           <img
             src={session?.user?.image || ""}

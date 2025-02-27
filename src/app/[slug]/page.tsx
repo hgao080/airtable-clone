@@ -1,9 +1,15 @@
+import { auth } from "~/server/auth";
 
-export default function Page() {
+import { Header } from "../_components/basesPage/header";
+import TablesView from "../_components/basesPage/tablesView";
 
-    return (
-        <div className="">
-            Helllo
-        </div>
-    )
+export default async function Page() {
+    const session = await auth();
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Header userImage={session?.user.image}/>
+      <TablesView />
+    </div>
+  );
 }

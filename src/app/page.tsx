@@ -1,9 +1,7 @@
 import Link from "next/link";
 
-import { LatestPost } from "~/app/_components/post";
 import { auth } from "~/server/auth";
 import { api, HydrateClient } from "~/trpc/server";
-import { Base } from "./_components/base";
 import { Header } from "./_components/dashboard/header";
 import { Sidebar } from "./_components/dashboard/sidebar";
 import { CreationButtons } from "./_components/dashboard/creationButtons";
@@ -11,7 +9,6 @@ import { Filters } from "./_components/dashboard/filters";
 import { Bases } from "./_components/dashboard/bases";
 
 export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
   const session = await auth();
 
   if (session?.user) {
