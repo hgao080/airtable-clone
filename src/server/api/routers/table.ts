@@ -17,7 +17,7 @@ export const tableRouter = createTRPCRouter({
         .input(z.object({ baseId: z.string() }))
         .query(async ({ ctx, input }) => {
             return ctx.db.table.findMany({
-                where: { baseId: input.baseId }, include: { columns: true, rows: true }
+                where: { baseId: input.baseId }
             })
         })
 })

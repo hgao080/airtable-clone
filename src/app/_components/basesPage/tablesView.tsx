@@ -7,6 +7,7 @@ import { api } from "~/trpc/react";
 import { SlArrowDown } from "react-icons/sl";
 import { FaPlus } from "react-icons/fa6";
 import Toolbar from "./toolbar";
+import Table from "./table";
 
 export default function TablesView() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function TablesView() {
     baseId,
   });
 
-  const [selectedTable, setSelectedTable] = useState(tables?.[0]?.name);
+  const [selectedTable, setSelectedTable] = useState(tables?.[0]?.id);
 
   const createTable = api.table.createTable.useMutation({
     onSuccess: () => refetch(),
@@ -30,7 +31,7 @@ export default function TablesView() {
 
   useEffect(() => {
     if (tables) {
-      setSelectedTable(tables[0]?.name);
+      setSelectedTable(tables[0]?.id);
     }
   }, [tables]);
 
@@ -41,15 +42,15 @@ export default function TablesView() {
           {tables?.map((table) => (
             <button
               key={table.id}
-              value={table.name}
+              value={table.id}
               className="flex items-center"
-              onClick={() => setSelectedTable(table.name)}
+              onClick={() => setSelectedTable(table.id)}
             >
               <div
-                className={`flex items-center justify-center gap-2 px-3 py-2 text-[0.75rem] ${table.name === selectedTable ? "rounded-t-sm bg-white text-black" : "text-white hover:bg-rose-800"}`}
+                className={`flex items-center justify-center gap-2 px-3 py-2 text-[0.75rem] ${table.id === selectedTable ? "rounded-t-sm bg-white text-black" : "text-white hover:bg-rose-800"}`}
               >
                 {table.name}
-                {table.name === selectedTable ? (
+                {table.id === selectedTable ? (
                   <SlArrowDown size={10} className="text-black" />
                 ) : null}
               </div>
@@ -60,7 +61,7 @@ export default function TablesView() {
             <SlArrowDown size={10} className="text-white" />
           </button>
           <div className="h-[12px] w-[1px] bg-white/20"></div>
-          <button className="flex gap-2 items-center pl-4 text-[0.75rem] font-light text-white">
+          <button className="flex items-center gap-2 pl-4 text-[0.75rem] font-light text-white">
             <FaPlus size={16} className="text-white/40" />
             Add or Import
           </button>
@@ -76,12 +77,7 @@ export default function TablesView() {
 
       <Toolbar />
 
-      {/* {tables?.map((table) => (
-        <div key={table.id} className="">
-          <h3>{table.name}</h3>
-          <Table tableId={table.id} />
-        </div>
-      ))} */}
+      {selectedTable && <Table tableId={selectedTable} />}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { IoHelpCircleOutline } from "react-icons/io5";
 import { PiBell } from "react-icons/pi";
 
 import { api } from "~/trpc/react";
+import Link from "next/link";
 
 interface HeaderProps {
   userImage: string | null | undefined;
@@ -26,13 +27,16 @@ export function Header({ userImage }: HeaderProps) {
       <nav className="flex w-full items-center justify-between p-5 pr-3">
         <div className="flex flex-auto gap-5">
           <div className="flex items-center gap-4">
-            <Image
-              src="/airtableWhite.png"
-              alt="Airtable Icon"
-              className="h-[18px]"
-              width={22}
-              height={1}
-            />
+            <Link href="/">
+              <Image
+                src="/airtableWhite.png"
+                alt="Airtable Icon"
+                className="h-[18px]"
+                width={22}
+                height={1}
+              />
+            </Link>
+
             <div className="flex items-center gap-2 text-white">
               <h1 className="text-[1.05rem] font-bold">{base?.name}</h1>
               <SlArrowDown

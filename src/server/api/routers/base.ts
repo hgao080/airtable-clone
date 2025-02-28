@@ -5,12 +5,58 @@ export const baseRouter = createTRPCRouter({
     createBase: protectedProcedure
         .input(z.object({ name: z.string() }))
         .mutation(async ({ ctx, input }) => {
-            return ctx.db.base.create({
-                data: {
-                    name: input.name,
-                    user: { connect: { id: ctx.session.user.id } },
-                },
-            });
+            const userId = ctx.session.user.id;
+
+            return ctx.db.$transaction(async (prisma) => {
+                const base = await prisma.base.create({
+                    data: {
+                        name: input.name,
+                        user: { connect: { id: userId }},
+                    },
+                });
+
+                const table = await prisma.table.create({
+                    data: {
+                        name: "Table 1",
+                        baseId: base.id,
+                    },
+                })
+
+                const defaultColumns = ["Name", "Notes", "Assignee", "Status"];
+                const columns = await Promise.all(defaultColumns.map((colName) => {
+                    return prisma.column.create({
+                        data: {
+                            name: colName,
+                            type: "TEXT",
+                            tableId: table.id
+                        }
+                    })
+                }))
+
+                const rows = await Promise.all(Array.from({ length: 3 }).map(() => {
+                    return prisma.row.create({
+                        data: {
+                            tableId: table.id,
+                        }
+                    })
+                }))
+
+                await Promise.all(
+                    rows.flatMap((row) =>
+                      columns.map((column) =>
+                        prisma.cell.create({
+                          data: {
+                            value: "",
+                            columnId: column.id,
+                            rowId: row.id,
+                          },
+                        })
+                      )
+                    )
+                  );
+
+                return base;
+            })
         }),
 
     getBases: protectedProcedure.query(async ({ ctx }) => {

@@ -12,7 +12,7 @@ import { CiViewList, CiSearch } from "react-icons/ci";
 export default function Toolbar() {
   
   return (
-    <div className="flex justify-between border-b border-gray-200 px-3 py-2">
+    <div className="flex justify-between border-b border-gray-300 px-3 py-2">
       <div className="flex items-center">
         <div className="flex items-center gap-1 text-[0.75rem] font-medium rounded-md hover:bg-gray-100 px-2 py-1">
           <LuMenu size={20} className="text-gray-600 w-[1rem] translate-y-[-1px]" />

@@ -11,7 +11,7 @@ export function CreationButtons() {
 
     const createBase = api.base.createBase.useMutation({
         onSuccess: (newBase) => {
-            router.push(`/${newBase.id}`);
+            router.push(`/base?baseId=${newBase.id}`);
         },
     })
 
