@@ -106,6 +106,7 @@ model Column {
 model Row {
   id      String @id @default(uuid())
   tableId String
+  created DateTime @default(now())
   table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
   cells   Cell[]
 }

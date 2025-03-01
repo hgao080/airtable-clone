@@ -6,15 +6,21 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
+  SortingState,
+  getSortedRowModel,
 } from "@tanstack/react-table";
-import { set } from "zod";
-import ColumnModal from "../dashboard/columnModal";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import ColumnModal from "./columnModal";
+import TableBody from "./tableBody";
 
 interface TableProps {
   tableId: string;
+  searchQuery: string;
 }
 
-export default function Table({ tableId }: TableProps) {
+export default function Table({ tableId, searchQuery }: TableProps) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+
   const { data: tableColumns, refetch: refetchColumns } =
     api.column.getColumns.useQuery({
       tableId,
@@ -60,6 +66,7 @@ export default function Table({ tableId }: TableProps) {
         tableId: tableId,
         name: newColumn.name,
         type: newColumn.type,
+        created: new Date(),
       };
 
       setLocalTableColumns((prevColumns) => [
@@ -126,6 +133,7 @@ export default function Table({ tableId }: TableProps) {
       const placeholderRow = {
         id: tempId,
         tableId: tableId,
+        created: new Date(),
         cells: localTableColumns.map((column) => ({
           value: "",
           id: `temp-cell-${column.id}`,
@@ -159,6 +167,18 @@ export default function Table({ tableId }: TableProps) {
         ),
       );
       refetchRows();
+    },
+  });
+
+  const addBulkRows = api.row.addBulkRows.useMutation({
+    onSuccess: (data) => {
+      setIsCreatingRow(false);
+      console.log(data?.message);
+      refetchRows();
+    },
+    onError: (err) => {
+      setIsCreatingRow(false);
+      console.error(err);
     },
   });
 
@@ -212,6 +232,13 @@ export default function Table({ tableId }: TableProps) {
     });
   };
 
+  const handleCreateKRows = () => {
+    setIsCreatingRow(true);
+    addBulkRows.mutate({
+      tableId,
+    });
+  };
+
   const handleOpenColumnModal = () => {
     setShowColumnModal(true);
   };
@@ -257,15 +284,45 @@ export default function Table({ tableId }: TableProps) {
     setEditingCell(null);
   };
 
+  const rowNumColumn: ColumnDef<any> = {
+    id: "rowNum",
+    header: "#",
+    size: 50,
+    cell: (props) => {
+      return (
+        <div className="pl-1 text-[0.75rem] font-light">
+          {props.row.index + 1}
+        </div>
+      );
+    },
+  };
+
   const columns = useMemo<ColumnDef<any>[]>(
-    () =>
-      (localTableColumns || []).map((col) => ({
+    () => [
+      rowNumColumn,
+      ...(localTableColumns || []).map((col) => ({
         accessorKey: col.id,
-        header: col.name,
-        cell: ({ row }) => {
+        header: () => {
+          const isMatch =
+            searchQuery.length > 0 &&
+            col.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+          return (
+            <div
+              className={`flex h-8 items-center pl-2 ${isMatch ? "bg-yellow-200" : ""}`}
+            >
+              {col.name}
+            </div>
+          );
+        },
+        cell: ({ row, getValue }: { row: any; getValue: () => any }) => {
           const rowId = row.original.id;
           const columnId = col.id;
           const cellValue = row.original[columnId] || "";
+
+          const isMatch =
+            searchQuery.length > 0 &&
+            cellValue.toLowerCase().includes(searchQuery.toLowerCase());
 
           return editingCell?.rowId === rowId &&
             editingCell?.columnId === columnId ? (
@@ -280,7 +337,9 @@ export default function Table({ tableId }: TableProps) {
           ) : (
             <div
               tabIndex={0}
-              className={`flex h-8 w-full items-center pl-1 text-[0.75rem] focus:ring-2 focus:ring-blue-500 outline-none`}
+              className={`flex h-full w-full items-center pl-1 text-[0.75rem] outline-none focus:ring-2 focus:ring-blue-500 ${
+                isMatch ? "bg-yellow-200" : ""
+              }`}
               onDoubleClick={() =>
                 handleDoubleClick(rowId, columnId, cellValue)
               }
@@ -290,7 +349,9 @@ export default function Table({ tableId }: TableProps) {
           );
         },
       })),
-    [localTableColumns, editingCell, editValue],
+    ],
+
+    [localTableColumns, editingCell, editValue, searchQuery],
   );
 
   const data = useMemo(
@@ -308,22 +369,34 @@ export default function Table({ tableId }: TableProps) {
   const table = useReactTable({
     data: data,
     columns: columns,
+    state: {
+      sorting,
+    },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     columnResizeMode: "onChange",
   });
 
+  const { rows } = table.getRowModel();
+
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
   return (
-    <div className="flex flex-auto bg-gray-50">
-      <div className="">
-        <table width={table.getTotalSize()} className="">
-          <thead className="">
+    <div
+      ref={tableContainerRef}
+      className="h-full overflow-auto border bg-gray-50 relative"
+    >
+        <table className="grid">
+          <thead className="grid sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr className="" key={headerGroup.id}>
+              <tr className="flex w-full" key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
+                    colSpan={header.colSpan}
                     style={{ width: header.getSize() }}
-                    className={`relative border border-t-0 border-gray-300 bg-gray-100 py-1 pl-3 text-start text-[0.8rem] font-light`}
+                    className={`relative z-50 border border-t-0 border-gray-300 bg-gray-100 pl-1 text-start text-[0.8rem] font-light`}
                   >
                     {flexRender(
                       header.column.columnDef.header,
@@ -359,22 +432,11 @@ export default function Table({ tableId }: TableProps) {
             ))}
           </thead>
 
-          <tbody className="bg-white">
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="h-8">
-                {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    style={{ width: cell.column.getSize() }}
-                    className={`border border-gray-300`}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-            <tr className="">
-              <td className="border border-t-0 border-gray-300 pl-2 text-[1.5rem] text-gray-400">
+          <TableBody table={table} tableContainerRef={tableContainerRef} handleCreateRow={handleCreateRow} handleCreateKRows={handleCreateKRows} isCreating={isCreatingColumn || isCreatingRow}/>
+
+          {/* <tfoot className="relative grid">
+            <tr className="flex">
+              <td className="border border-t-0 border-gray-300 pl-2 text-[1.5rem] w-[50px] text-gray-400">
                 <button
                   onClick={handleCreateRow}
                   className="w-full text-start"
@@ -383,10 +445,18 @@ export default function Table({ tableId }: TableProps) {
                   +
                 </button>
               </td>
+              <td className="flex border border-t-0 border-gray-300 pl-2 text-[1.5rem] text-gray-400">
+                <button
+                  onClick={handleCreateKRows}
+                  className="w-full text-start"
+                  disabled={isCreatingColumn || isCreatingRow}
+                >
+                  Add 100k
+                </button>
+              </td>
             </tr>
-          </tbody>
+          </tfoot> */}
         </table>
       </div>
-    </div>
   );
 }

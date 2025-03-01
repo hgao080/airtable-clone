@@ -24,19 +24,29 @@ export default function TablesView() {
   });
 
   const [selectedTable, setSelectedTable] = useState(tables?.[0]?.id);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const createTable = api.table.createTable.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: (data) => {
+      refetch();
+    },
   });
+
+  const handleCreateTable = () => {
+    createTable.mutate({
+      baseId,
+      name: "Table " + (tables ? tables.length + 1 : 0),
+    });
+  };
 
   useEffect(() => {
     if (tables) {
-      setSelectedTable(tables[0]?.id);
+      setSelectedTable(tables[tables.length - 1]?.id);
     }
   }, [tables]);
 
   return (
-    <div className="flex flex-auto flex-col">
+    <div className="flex flex-auto flex-col overflow-auto">
       <div className="flex justify-between gap-2 bg-rose-600">
         <div className="flex flex-auto items-center rounded-tr-md bg-rose-700 pl-3">
           {tables?.map((table) => (
@@ -61,7 +71,10 @@ export default function TablesView() {
             <SlArrowDown size={10} className="text-white" />
           </button>
           <div className="h-[12px] w-[1px] bg-white/20"></div>
-          <button className="flex items-center gap-2 pl-4 text-[0.75rem] font-light text-white">
+          <button
+            onClick={handleCreateTable}
+            className="flex items-center gap-2 pl-4 text-[0.75rem] font-light text-white"
+          >
             <FaPlus size={16} className="text-white/40" />
             Add or Import
           </button>
@@ -75,9 +88,14 @@ export default function TablesView() {
         </div>
       </div>
 
-      <Toolbar />
+      <Toolbar
+        searchQuery={searchQuery}
+        onSearchChange={(newQuery) => setSearchQuery(newQuery)}
+      />
 
-      {selectedTable && <Table tableId={selectedTable} />}
+        {selectedTable && (
+          <Table tableId={selectedTable} searchQuery={searchQuery} />
+        )}
     </div>
   );
 }

@@ -49,8 +49,8 @@ export async function Header() {
             <PiBell size={16} className="text-black translate-y-[1px]" />
           </button>
 
-          <img
-            src={session?.user?.image || ""}
+          <Image
+            src={session?.user?.image ?? ""}
             alt=""
             className="aspect-square h-auto w-[30px] rounded-full hover:cursor-pointer"
           />
