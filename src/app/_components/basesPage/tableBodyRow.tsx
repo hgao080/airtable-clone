@@ -1,5 +1,5 @@
-import { flexRender, Row } from "@tanstack/react-table";
-import { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
+import { flexRender, type Row } from "@tanstack/react-table";
+import { type VirtualItem, type Virtualizer } from "@tanstack/react-virtual";
 
 interface TableBodyRowProps {
   row: Row<any>;

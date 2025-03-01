@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 interface BaseCardProps {
-  baseId: String;
+  baseId: string;
   baseName: string;
 }
 

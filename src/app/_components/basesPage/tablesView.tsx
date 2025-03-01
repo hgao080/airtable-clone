@@ -14,21 +14,27 @@ export default function TablesView() {
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
 
-  if (!baseId) {
-    router.back();
-    return null;
-  }
+  const [selectedTable, setSelectedTable] = useState<string | undefined>("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: tables, refetch } = api.table.getTablesByBase.useQuery({
     baseId,
   });
 
-  const [selectedTable, setSelectedTable] = useState(tables?.[0]?.id);
-  const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    if (tables) {
+      setSelectedTable(tables[tables.length - 1]?.id);
+    }
+  }, [tables]);
+
+  if (!baseId) {
+    router.back();
+    return null;
+  }
 
   const createTable = api.table.createTable.useMutation({
     onSuccess: (data) => {
-      refetch();
+      void refetch();
     },
   });
 
@@ -38,12 +44,6 @@ export default function TablesView() {
       name: "Table " + (tables ? tables.length + 1 : 0),
     });
   };
-
-  useEffect(() => {
-    if (tables) {
-      setSelectedTable(tables[tables.length - 1]?.id);
-    }
-  }, [tables]);
 
   return (
     <div className="flex flex-auto flex-col overflow-auto">

@@ -50,18 +50,15 @@ export const tableRouter = createTRPCRouter({
                 return newTable;
 
             })
-
-            return ctx.db.table.create({
-                data: {
-                    baseId: input.baseId,
-                    name: input.name,
-                }
-            })
         }),
 
     getTablesByBase: protectedProcedure
-        .input(z.object({ baseId: z.string() }))
+        .input(z.object({ baseId: z.union([z.string(), z.null()]) }))
         .query(async ({ ctx, input }) => {
+            if (!input.baseId) {
+                return [];
+            }
+
             return ctx.db.table.findMany({
                 where: { baseId: input.baseId }
             })

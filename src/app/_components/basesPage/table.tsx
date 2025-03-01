@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 
 import {
-  ColumnDef,
+  type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
-  SortingState,
+  type SortingState,
   getSortedRowModel,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
@@ -120,9 +120,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
           })),
         })),
       );
-      refetchColumns();
-
-      return;
+      void refetchColumns();
     },
   });
 
@@ -167,9 +165,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
             : row,
         ),
       );
-      refetchRows();
-
-      return;
+      void refetchRows();
     },
   });
 
@@ -177,15 +173,11 @@ export default function Table({ tableId, searchQuery }: TableProps) {
     onSuccess: (data) => {
       setIsCreatingRow(false);
       console.log(data?.message);
-      refetchRows();
-
-      return;
+      void refetchRows();
     },
     onError: (err) => {
       setIsCreatingRow(false);
       console.error(err);
-
-      return;
     },
   });
 
@@ -219,7 +211,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
     if (!columnName) {
       createColumn.mutate({
         tableId,
-        name: "Label " + (tableColumns?.length || 0),
+        name: "Label " + (tableColumns?.length ?? 0),
         type: columnType,
       });
     } else {
@@ -323,7 +315,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
             </div>
           );
         },
-        cell: ({ row, getValue }: { row: any; getValue: () => any }) => {
+        cell: ({ row }: { row: any; }) => {
           const rowId = row.original.id;
           const columnId = col.id;
           const cellValue = row.original[columnId] || "";
@@ -442,28 +434,6 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
           <TableBody table={table} tableContainerRef={tableContainerRef} handleCreateRow={handleCreateRow} handleCreateKRows={handleCreateKRows} isCreating={isCreatingColumn || isCreatingRow}/>
 
-          {/* <tfoot className="relative grid">
-            <tr className="flex">
-              <td className="border border-t-0 border-gray-300 pl-2 text-[1.5rem] w-[50px] text-gray-400">
-                <button
-                  onClick={handleCreateRow}
-                  className="w-full text-start"
-                  disabled={isCreatingColumn || isCreatingRow}
-                >
-                  +
-                </button>
-              </td>
-              <td className="flex border border-t-0 border-gray-300 pl-2 text-[1.5rem] text-gray-400">
-                <button
-                  onClick={handleCreateKRows}
-                  className="w-full text-start"
-                  disabled={isCreatingColumn || isCreatingRow}
-                >
-                  Add 100k
-                </button>
-              </td>
-            </tr>
-          </tfoot> */}
         </table>
       </div>
   );

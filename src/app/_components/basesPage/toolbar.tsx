@@ -10,7 +10,6 @@ import { GrShare } from "react-icons/gr";
 import { CiViewList, CiSearch } from "react-icons/ci";
 import SearchModal from "./searchModal";
 import { useState } from "react";
-import { on } from "events";
 
 interface ToolbarProps {
   searchQuery: string;

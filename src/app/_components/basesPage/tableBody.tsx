@@ -1,4 +1,4 @@
-import { Row, Table } from "@tanstack/react-table";
+import { type Row, type Table } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import TableBodyRow from "./tableBodyRow";
 
@@ -23,10 +23,10 @@ export default function TableBody({
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
     count: rows.length,
     estimateSize: () => 33,
-    getScrollElement: () => tableContainerRef.current,
+    getScrollElement: () => tableContainerRef.current!,
     measureElement:
       typeof window !== "undefined" &&
-      navigator.userAgent.indexOf("Firefox") === -1
+      !navigator.userAgent.includes("Firefox")
         ? (element) => element?.getBoundingClientRect().height
         : undefined,
     overscan: 5,
@@ -38,7 +38,7 @@ export default function TableBody({
       className="relative grid"
     >
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-        const row = rows[virtualRow.index] as Row<any>;
+        const row = rows[virtualRow.index]!;
 
         return (
           <TableBodyRow
