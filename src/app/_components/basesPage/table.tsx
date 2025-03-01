@@ -18,8 +18,6 @@ interface TableProps {
 }
 
 export default function Table({ tableId, searchQuery }: TableProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-
   const { data: tableColumns, refetch: refetchColumns } =
     api.column.getColumns.useQuery({
       tableId,
@@ -41,6 +39,13 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
   const [columnName, setColumnName] = useState("");
   const [columnType, setColumnType] = useState<"TEXT" | "NUMBER">("TEXT");
+
+  // CELL SELECTION
+  const [editingCell, setEditingCell] = useState<{
+    rowId: string;
+    columnId: string;
+  } | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     if (tableRows) {
@@ -99,27 +104,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
     onSuccess: (createdColumn, newColumn, context) => {
       setIsCreatingColumn(false);
 
-      if (!createdColumn) {
-        return;
-      }
-
-      setLocalTableColumns((prevColumns) =>
-        prevColumns.map((col) =>
-          col.id === context?.tempId ? { ...col, id: createdColumn.id } : col,
-        ),
-      );
-      setLocalTableRows((prevRows) =>
-        prevRows.map((row) => ({
-          ...row,
-          cells: row.cells.map((cell) => ({
-            ...cell,
-            columnId:
-              cell.columnId === context?.tempId
-                ? createdColumn.id
-                : cell.columnId,
-          })),
-        })),
-      );
+      void refetchRows();
       void refetchColumns();
     },
   });
@@ -208,6 +193,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
   const handleCreateColumn = () => {
     setIsCreatingColumn(true);
+
     if (!columnName) {
       createColumn.mutate({
         tableId,
@@ -248,13 +234,6 @@ export default function Table({ tableId, searchQuery }: TableProps) {
     setColumnName("");
     setColumnType("TEXT");
   };
-
-  // CELL SELECTION
-  const [editingCell, setEditingCell] = useState<{
-    rowId: string;
-    columnId: string;
-  } | null>(null);
-  const [editValue, setEditValue] = useState("");
 
   const handleDoubleClick = (
     rowId: string,
@@ -315,7 +294,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
             </div>
           );
         },
-        cell: ({ row }: { row: any; }) => {
+        cell: ({ row }: { row: any }) => {
           const rowId = row.original.id;
           const columnId = col.id;
           const cellValue = row.original[columnId] || "";
@@ -357,9 +336,11 @@ export default function Table({ tableId, searchQuery }: TableProps) {
   const data = useMemo(
     () =>
       localTableRows.map((row) => {
-        const rowData: Record<string, string> = {};
+        const rowData: Record<string, any> = {};
+
         row.cells.forEach((cell) => {
-          rowData[cell.columnId] = cell.value;
+          const columnDef = localTableColumns.find(col => col.id === cell.columnId)
+          rowData[cell.columnId] = columnDef?.type === "NUMBER" ? Number(cell.value) : cell.value;
         });
         return { id: row.id, ...rowData };
       }),
@@ -369,72 +350,91 @@ export default function Table({ tableId, searchQuery }: TableProps) {
   const table = useReactTable({
     data: data,
     columns: columns,
-    state: {
-      sorting,
-    },
-    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     columnResizeMode: "onChange",
   });
 
-  const { rows } = table.getRowModel();
-
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
+  if (!tableColumns || !tableRows || tableId === "temp") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-[0.75rem] text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div
       ref={tableContainerRef}
-      className="h-full overflow-auto border bg-gray-50 relative"
+      className="relative h-full overflow-auto border bg-gray-50"
     >
-        <table className="grid">
-          <thead className="grid sticky top-0 z-10">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr className="flex w-full" key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    colSpan={header.colSpan}
-                    style={{ width: header.getSize() }}
-                    className={`relative z-50 border border-t-0 border-gray-300 bg-gray-100 pl-1 text-start text-[0.8rem] font-light`}
+      <table className="grid">
+        <thead className="sticky top-0 z-10 grid">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr className="flex w-full" key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <th
+                  key={header.id}
+                  style={{ width: header.getSize() }}
+                  className={`flex border border-t-0 border-gray-300 bg-gray-100 text-[0.8rem] font-light`}
+                >
+                  <div
+                    {...{
+                      className: header.column.getCanSort()
+                        ? "flex flex-auto cursor-pointer select-none items-center gap-1"
+                        : "",
+                      onClick: header.column.getToggleSortingHandler(),
+                    }}
                   >
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext(),
                     )}
+                    {{
+                      asc: "🔼",
+                      desc: "🔽",
+                    }[header.column.getIsSorted() as string] ?? null}
                     <div
                       onMouseDown={header.getResizeHandler()}
                       onTouchStart={header.getResizeHandler()}
                       className={`absolute right-[-2px] top-[3px] z-50 h-[80%] w-[3px] cursor-ew-resize rounded-full bg-blue-500 opacity-0 hover:opacity-100`}
                     ></div>
-                  </th>
-                ))}
-                <th className="relative border border-t-0 border-gray-300 bg-gray-100">
-                  <button
-                    onClick={handleOpenColumnModal}
-                    className="my-[-5px] w-full px-10 py-0 text-[1.5rem] font-light text-gray-500"
-                    disabled={isCreatingColumn || isCreatingRow}
-                  >
-                    +
-                  </button>
-                  {showColumnModal && (
-                    <ColumnModal
-                      columnName={columnName}
-                      columnType={columnType}
-                      setColumnName={setColumnName}
-                      setColumnType={setColumnType}
-                      handleCloseColumnModal={handleCloseColumnModal}
-                      handleModalCreateColumn={handleCreateColumn}
-                    />
-                  )}
+                  </div>
                 </th>
-              </tr>
-            ))}
-          </thead>
+              ))}
+              <th className="relative border border-t-0 border-gray-300 bg-gray-100">
+                <button
+                  onClick={handleOpenColumnModal}
+                  className="my-[-5px] w-full px-10 py-0 text-[1.5rem] font-light text-gray-500"
+                  disabled={isCreatingColumn || isCreatingRow}
+                >
+                  +
+                </button>
+                {showColumnModal && (
+                  <ColumnModal
+                    columnName={columnName}
+                    columnType={columnType}
+                    setColumnName={setColumnName}
+                    setColumnType={setColumnType}
+                    handleCloseColumnModal={handleCloseColumnModal}
+                    handleModalCreateColumn={handleCreateColumn}
+                  />
+                )}
+              </th>
+            </tr>
+          ))}
+        </thead>
 
-          <TableBody table={table} tableContainerRef={tableContainerRef} handleCreateRow={handleCreateRow} handleCreateKRows={handleCreateKRows} isCreating={isCreatingColumn || isCreatingRow}/>
-
-        </table>
-      </div>
+        <TableBody
+          table={table}
+          tableContainerRef={tableContainerRef}
+          handleCreateRow={handleCreateRow}
+          handleCreateKRows={handleCreateKRows}
+          isCreating={isCreatingColumn || isCreatingRow}
+        />
+      </table>
+    </div>
   );
 }

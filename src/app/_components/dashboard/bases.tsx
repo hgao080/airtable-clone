@@ -6,6 +6,14 @@ import { BaseCard } from "./baseCard";
 export function Bases() {
     const { data: bases } = api.base.getBases.useQuery();
 
+    if (!bases) {
+        return (
+            <div className="flex items-center justify-center h-[50vh]">
+                <span className="text-gray-400">Loading...</span>
+            </div>
+        )
+    }
+
     return (
         <div className="grid grid-cols-5 gap-3 mt-2">
             {bases?.map((base) => (

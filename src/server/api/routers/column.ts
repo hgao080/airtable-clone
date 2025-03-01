@@ -38,7 +38,8 @@ export const columnRouter = createTRPCRouter({
         .input(z.object({ tableId: z.string() }))
         .query(async ({ ctx, input }) => {
             return ctx.db.column.findMany({
-                where: { tableId: input.tableId }
+                where: { tableId: input.tableId },
+                orderBy: { created: "asc" }
             })
         })
 })

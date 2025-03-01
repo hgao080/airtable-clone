@@ -20,10 +20,13 @@ export default function TablesView() {
   const { data: tables, refetch } = api.table.getTablesByBase.useQuery({
     baseId,
   });
+  const [localTables, setLocalTables] = useState(tables ?? []);
+  const [isCreatingTable, setIsCreatingTable] = useState(false);
 
   useEffect(() => {
     if (tables) {
       setSelectedTable(tables[tables.length - 1]?.id);
+      setLocalTables(tables);
     }
   }, [tables]);
 
@@ -33,7 +36,30 @@ export default function TablesView() {
   }
 
   const createTable = api.table.createTable.useMutation({
-    onSuccess: (data) => {
+    onMutate: (data) => {
+      setIsCreatingTable(true);
+      const previousTables = localTables;
+
+      setLocalTables((prevTables) => {
+        return [
+          ...prevTables,
+          {
+            id: 'temp',
+            name: data.name,
+            baseId,
+          },
+        ];
+      });
+      setSelectedTable('temp');
+
+      return { previousTables };
+    },
+    onError: (err, data, context) => {
+      setIsCreatingTable(false);
+      setLocalTables(context?.previousTables ?? []);
+    },
+    onSuccess: (createdTable) => {
+      setIsCreatingTable(false);
       void refetch();
     },
   });
@@ -49,7 +75,7 @@ export default function TablesView() {
     <div className="flex flex-auto flex-col overflow-auto">
       <div className="flex justify-between gap-2 bg-rose-600">
         <div className="flex flex-auto items-center rounded-tr-md bg-rose-700 pl-3">
-          {tables?.map((table) => (
+          {localTables?.map((table) => (
             <button
               key={table.id}
               value={table.id}
@@ -74,6 +100,7 @@ export default function TablesView() {
           <button
             onClick={handleCreateTable}
             className="flex items-center gap-2 pl-4 text-[0.75rem] font-light text-white"
+            disabled={isCreatingTable}
           >
             <FaPlus size={16} className="text-white/40" />
             Add or Import
