@@ -9,7 +9,6 @@ import {
   SortingState,
   getSortedRowModel,
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
 
@@ -31,9 +30,9 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
   // LOCAL STATE
   const [localTableColumns, setLocalTableColumns] = useState(
-    tableColumns || [],
+    tableColumns ?? [],
   );
-  const [localTableRows, setLocalTableRows] = useState(tableRows || []);
+  const [localTableRows, setLocalTableRows] = useState(tableRows ?? []);
 
   const [showColumnModal, setShowColumnModal] = useState(false);
 
@@ -122,6 +121,8 @@ export default function Table({ tableId, searchQuery }: TableProps) {
         })),
       );
       refetchColumns();
+
+      return;
     },
   });
 
@@ -167,6 +168,8 @@ export default function Table({ tableId, searchQuery }: TableProps) {
         ),
       );
       refetchRows();
+
+      return;
     },
   });
 
@@ -175,10 +178,14 @@ export default function Table({ tableId, searchQuery }: TableProps) {
       setIsCreatingRow(false);
       console.log(data?.message);
       refetchRows();
+
+      return;
     },
     onError: (err) => {
       setIsCreatingRow(false);
       console.error(err);
+
+      return;
     },
   });
 
@@ -201,8 +208,9 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
       return;
     },
-    onError: (err, updatedCell) => {
+    onError: () => {
       setLocalTableRows(localTableRows);
+      return;
     },
   });
 

@@ -74,7 +74,7 @@ export function Header({ userImage }: HeaderProps) {
           </button>
 
           <img
-            src={userImage || ""}
+            src={userImage ?? ""}
             alt=""
             className="aspect-square h-auto w-[30px] rounded-full border hover:cursor-pointer"
           />
