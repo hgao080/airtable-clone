@@ -6,21 +6,46 @@ import { useSearchParams } from "next/navigation";
 import { SlArrowDown } from "react-icons/sl";
 import { IoHelpCircleOutline } from "react-icons/io5";
 import { PiBell } from "react-icons/pi";
+import { VscHistory } from "react-icons/vsc";
+import { GoPeople } from "react-icons/go";
 
 import { api } from "~/trpc/react";
 import Link from "next/link";
+import ProfileModal from "../profileModal";
+import { useEffect, useRef, useState } from "react";
 
 interface HeaderProps {
-  userImage: string | null | undefined;
+  user: any;
 }
 
-export function Header({ userImage }: HeaderProps) {
+export function Header({ user }: HeaderProps) {
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
 
   const [base] = baseId
     ? api.base.getBase.useSuspenseQuery({ baseId })
     : [null];
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const profileModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isProfileModalOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isProfileModalOpen])
+
+  const handleClickOutside = (e: MouseEvent) => {
+    if (profileModalRef.current && !profileModalRef.current.contains(e.target as Node)) {
+      setIsProfileModalOpen(false)
+    }
+  }
 
   return (
     <header className="flex h-[56px] w-full bg-rose-600">
@@ -64,20 +89,38 @@ export function Header({ userImage }: HeaderProps) {
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-4 pr-1">
+          <button>
+            <VscHistory size={14} className="text-white" />
+          </button>
+
           <button className="flex items-center gap-1 rounded-full px-3 py-1 hover:bg-rose-700">
             <IoHelpCircleOutline size={16} className="text-white" />
             <p className="text-[0.8rem] text-white">Help</p>
+          </button>
+
+          <button className="flex items-center bg-rose-800 rounded-full px-3 py-2 gap-1">
+            <p className="text-white text-[0.8rem]">Upgrade</p>
+          </button>
+          
+          <button className="flex items-center bg-white rounded-full px-3 py-1 gap-1">
+            <GoPeople size={16} className="text-rose-600" />
+            <p className="text-rose-600 text-[0.8rem]">Share</p>
           </button>
 
           <button className="rounded-full border bg-gray-100 p-[0.4rem] hover:bg-white">
             <PiBell size={16} className="translate-y-[1px] text-rose-600" />
           </button>
 
-          <img
-            src={userImage ?? ""}
-            alt=""
-            className="aspect-square h-auto w-[30px] rounded-full border hover:cursor-pointer"
-          />
+          <div className="flex items-center relative">
+            <button onClick={() => setIsProfileModalOpen(true)} className="">
+              <img
+                src={user.image ?? ""}
+                alt=""
+                className="aspect-square h-auto w-[30px] rounded-full border hover:cursor-pointer"
+              />
+            </button>
+            {isProfileModalOpen && <ProfileModal ref={profileModalRef} user={user}/>}
+          </div>
         </div>
       </nav>
     </header>

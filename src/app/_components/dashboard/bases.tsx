@@ -4,7 +4,7 @@ import { api } from "~/trpc/react";
 import { BaseCard } from "./baseCard";
 
 export function Bases() {
-    const { data: bases } = api.base.getBases.useQuery();
+    const { data: bases, refetch } = api.base.getBases.useQuery();
 
     if (!bases) {
         return (

@@ -78,6 +78,14 @@ export default function TablesView() {
     });
   };
 
+  if (baseId === "creating") {
+    return (
+      <div className="flex flex-auto flex-col items-center justify-center">
+        <h1 className="text-[1.5rem] font-semibold text-gray-700">Creating Base...</h1>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-auto flex-col overflow-auto">
       <div className="flex justify-between gap-2 bg-rose-600">

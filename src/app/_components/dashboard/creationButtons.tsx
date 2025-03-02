@@ -5,6 +5,7 @@ import { GoArrowUp } from "react-icons/go";
 import { useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
+import { useState } from "react";
 
 export function CreationButtons() {
     const router = useRouter();
@@ -16,6 +17,7 @@ export function CreationButtons() {
     })
 
     const handleCreateBase = () => {
+        router.push("/base?baseId=creating")
         createBase.mutate({ name: "Unititled Base" });
     }
 

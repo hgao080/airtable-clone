@@ -8,7 +8,7 @@ export default async function Page() {
 
   return (
     <div className="flex flex-col h-screen">
-      <Header userImage={session?.user.image}/>
+      <Header user={session?.user}/>
       <TablesView />
     </div>
   );
