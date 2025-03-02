@@ -8,6 +8,7 @@ import { SlArrowDown } from "react-icons/sl";
 import { FaPlus } from "react-icons/fa6";
 import Toolbar from "./toolbar";
 import Table from "./table";
+import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
 
 export default function TablesView() {
   const router = useRouter();
@@ -22,6 +23,12 @@ export default function TablesView() {
   });
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
+
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     if (tables) {
@@ -44,13 +51,13 @@ export default function TablesView() {
         return [
           ...prevTables,
           {
-            id: 'temp',
+            id: "temp",
             name: data.name,
             baseId,
           },
         ];
       });
-      setSelectedTable('temp');
+      setSelectedTable("temp");
 
       return { previousTables };
     },
@@ -80,7 +87,10 @@ export default function TablesView() {
               key={table.id}
               value={table.id}
               className="flex items-center"
-              onClick={() => setSelectedTable(table.id)}
+              onClick={() => {
+                setSorting([]);
+                setSelectedTable(table.id);
+              }}
             >
               <div
                 className={`flex items-center justify-center gap-2 px-3 py-2 text-[0.75rem] ${table.id === selectedTable ? "rounded-t-sm bg-white text-black" : "text-white hover:bg-rose-800"}`}
@@ -118,11 +128,22 @@ export default function TablesView() {
       <Toolbar
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
+        tableId={selectedTable}
+        setSorting={setSorting}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
       />
 
-        {selectedTable && (
-          <Table tableId={selectedTable} searchQuery={searchQuery} />
-        )}
+      {selectedTable && (
+        <Table
+          tableId={selectedTable}
+          searchQuery={searchQuery}
+          sorting={sorting}
+          columnFilters={columnFilters}
+          setColumnFilters={setColumnFilters}
+          columnVisibility={columnVisibility}
+        />
+      )}
     </div>
   );
 }

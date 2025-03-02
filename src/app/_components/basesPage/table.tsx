@@ -8,16 +8,39 @@ import {
   useReactTable,
   type SortingState,
   getSortedRowModel,
+  getFilteredRowModel,
+  ColumnFiltersState,
+  RowData,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
+import Filter from "./filter";
+import { FaOldRepublic } from "react-icons/fa6";
 
 interface TableProps {
   tableId: string;
   searchQuery: string;
+  sorting: SortingState;
+  columnFilters: ColumnFiltersState;
+  setColumnFilters: (newColumnFilters: any) => void;
+  columnVisibility: Record<string, boolean>;
 }
 
-export default function Table({ tableId, searchQuery }: TableProps) {
+declare module "@tanstack/react-table" {
+  //allows us to define custom properties for our columns
+  interface ColumnMeta<TData extends RowData, TValue> {
+    filterVariant?: "text" | "range";
+  }
+}
+
+export default function Table({
+  tableId,
+  searchQuery,
+  sorting,
+  columnFilters,
+  setColumnFilters,
+  columnVisibility,
+}: TableProps) {
   const { data: tableColumns, refetch: refetchColumns } =
     api.column.getColumns.useQuery({
       tableId,
@@ -288,7 +311,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
           return (
             <div
-              className={`flex h-8 items-center pl-2 ${isMatch ? "bg-yellow-200" : ""}`}
+              className={`flex h-8 w-full items-center pl-2 ${isMatch ? "bg-yellow-200" : ""}`}
             >
               {col.name}
             </div>
@@ -301,7 +324,10 @@ export default function Table({ tableId, searchQuery }: TableProps) {
 
           const isMatch =
             searchQuery.length > 0 &&
-            cellValue.toLowerCase().includes(searchQuery.toLowerCase());
+            cellValue
+              .toString()
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase());
 
           return editingCell?.rowId === rowId &&
             editingCell?.columnId === columnId ? (
@@ -316,7 +342,7 @@ export default function Table({ tableId, searchQuery }: TableProps) {
           ) : (
             <div
               tabIndex={0}
-              className={`flex h-full w-full items-center pl-1 text-[0.75rem] outline-none focus:ring-2 focus:ring-blue-500 ${
+              className={`flex h-full w-full flex-auto items-center pl-1 text-[0.75rem] outline-none focus:ring-2 focus:ring-blue-500 ${
                 isMatch ? "bg-yellow-200" : ""
               }`}
               onDoubleClick={() =>
@@ -326,6 +352,12 @@ export default function Table({ tableId, searchQuery }: TableProps) {
               {cellValue}
             </div>
           );
+        },
+        sortingFn: "alphanumeric" as const,
+        sortUndefined: "last" as const,
+        meta: {
+          filterVariant:
+            col.type === "NUMBER" ? ("range" as const) : ("text" as const),
         },
       })),
     ],
@@ -339,7 +371,9 @@ export default function Table({ tableId, searchQuery }: TableProps) {
         const rowData: Record<string, any> = {};
 
         row.cells.forEach((cell) => {
-          const columnDef = localTableColumns.find(col => col.id === cell.columnId)
+          const columnDef = localTableColumns.find(
+            (col) => col.id === cell.columnId,
+          );
           rowData[cell.columnId] = columnDef?.type === "NUMBER" ? Number(cell.value) : cell.value;
         });
         return { id: row.id, ...rowData };
@@ -350,7 +384,15 @@ export default function Table({ tableId, searchQuery }: TableProps) {
   const table = useReactTable({
     data: data,
     columns: columns,
+    state: {
+      columnFilters,
+      sorting,
+      columnVisibility,
+    },
+    onColumnFiltersChange: setColumnFilters,
+    isMultiSortEvent: (e) => true,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     columnResizeMode: "onChange",
   });
@@ -378,30 +420,39 @@ export default function Table({ tableId, searchQuery }: TableProps) {
                 <th
                   key={header.id}
                   style={{ width: header.getSize() }}
-                  className={`flex border border-t-0 border-gray-300 bg-gray-100 text-[0.8rem] font-light`}
+                  className={`relative flex flex-col border border-t-0 border-gray-300 bg-gray-100 text-[0.8rem] font-light`}
                 >
                   <div
                     {...{
                       className: header.column.getCanSort()
-                        ? "flex flex-auto cursor-pointer select-none items-center gap-1"
+                        ? "flex flex-col cursor-pointer select-none gap-1"
                         : "",
                       onClick: header.column.getToggleSortingHandler(),
                     }}
                   >
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext(),
-                    )}
-                    {{
-                      asc: "🔼",
-                      desc: "🔽",
-                    }[header.column.getIsSorted() as string] ?? null}
+                    <div className="flex items-center">
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                      {{
+                        asc: "🔼",
+                        desc: "🔽",
+                      }[header.column.getIsSorted() as string] ?? null}
+                    </div>
+
+                    
                     <div
                       onMouseDown={header.getResizeHandler()}
                       onTouchStart={header.getResizeHandler()}
                       className={`absolute right-[-2px] top-[3px] z-50 h-[80%] w-[3px] cursor-ew-resize rounded-full bg-blue-500 opacity-0 hover:opacity-100`}
                     ></div>
                   </div>
+                  {header.column.getCanFilter() ? (
+                      <div>
+                        <Filter column={header.column} />
+                      </div>
+                    ) : null}
                 </th>
               ))}
               <th className="relative border border-t-0 border-gray-300 bg-gray-100">

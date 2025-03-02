@@ -9,15 +9,58 @@ import { CgFormatLineHeight } from "react-icons/cg";
 import { GrShare } from "react-icons/gr";
 import { CiViewList, CiSearch } from "react-icons/ci";
 import SearchModal from "./searchModal";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import SortModal from "./sortModal";
+
+import { api } from "~/trpc/react";
+import { SortingState } from "@tanstack/react-table";
+import VisiblityModal from "./visibilityModal";
 
 interface ToolbarProps {
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
+  tableId: string | undefined;
+  setSorting: (newSorting: SortingState) => void;
+  setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
+  columnVisibility: Record<string, boolean>;
 }
 
-export default function Toolbar({ searchQuery, onSearchChange }: ToolbarProps) {
+export default function Toolbar({
+  searchQuery,
+  onSearchChange,
+  tableId,
+  setSorting,
+  setColumnVisibility,
+  columnVisibility,
+}: ToolbarProps) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isSortModalOpen, setIsSortModalOpen] = useState(false);
+  const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);
+  const sortModalRef = useRef<HTMLDivElement>(null);
+  const columnModalRef = useRef<HTMLDivElement>(null);
+  const { data: table } = api.table.getTable.useQuery({ tableId });
+  const [tableColumns, setTableColumns] = useState(table?.columns ?? []);
+
+  useEffect(() => {
+    if (table) {
+      setTableColumns(table.columns);
+      setColumnVisibility(
+        Object.fromEntries(table.columns.map((col) => [col.id, true])),
+      );
+    }
+  }, [table]);
+
+  useEffect(() => {
+    if (isSortModalOpen || isVisibilityModalOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isSortModalOpen, isVisibilityModalOpen]);
 
   const handleOpenSearchModal = () => {
     setIsSearchModalOpen(true);
@@ -26,6 +69,17 @@ export default function Toolbar({ searchQuery, onSearchChange }: ToolbarProps) {
   const handleCloseSearchModal = () => {
     setIsSearchModalOpen(false);
     onSearchChange("");
+  };
+
+  const handleClickOutside = (e: MouseEvent) => {
+    if (
+      (sortModalRef.current &&
+      !sortModalRef.current.contains(e.target as Node)) || (columnModalRef.current &&
+      !columnModalRef.current.contains(e.target as Node))
+    ) {
+      setIsSortModalOpen(false);
+      setIsVisibilityModalOpen(false);
+    }
   };
 
   return (
@@ -48,10 +102,21 @@ export default function Toolbar({ searchQuery, onSearchChange }: ToolbarProps) {
             <img src="/people.png" alt="" width={24} height={0} />
             <SlArrowDown size={10} />
           </button>
-          <button className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
-            <BsEyeSlash size={16} className="" />
-            <p className="text-[0.75rem] font-medium">Hide Fields</p>
-          </button>
+          <div className="relative flex items-center">
+            <button onClick={() => setIsVisibilityModalOpen(true)} className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
+              <BsEyeSlash size={16} className="" />
+              <p className="text-[0.75rem] font-medium">Hide Fields</p>
+            </button>
+            {isVisibilityModalOpen && (
+              <VisiblityModal
+                ref={columnModalRef}
+                columns={tableColumns}
+                columnVisibility={columnVisibility}
+                setColumnVisibility={setColumnVisibility}
+              />
+            )}
+          </div>
+
           <button className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
             <IoFilterSharp size={14} className="" />
             <p className="text-[0.75rem] font-medium">Filter</p>
@@ -60,10 +125,23 @@ export default function Toolbar({ searchQuery, onSearchChange }: ToolbarProps) {
             <CiViewList size={16} className="" />
             <p className="text-[0.75rem] font-medium">Group</p>
           </button>
-          <button className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
-            <TbArrowsSort size={16} className="scale-x-[-1]" />
-            <p className="text-[0.75rem] font-medium">Sort</p>
-          </button>
+          <div className="relative flex items-center">
+            <button
+              onClick={() => setIsSortModalOpen(true)}
+              className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100"
+            >
+              <TbArrowsSort size={16} className="scale-x-[-1]" />
+              <p className="text-[0.75rem] font-medium">Sort</p>
+            </button>
+            {isSortModalOpen && (
+              <SortModal
+                ref={sortModalRef}
+                columns={tableColumns}
+                setSorting={setSorting}
+              />
+            )}
+          </div>
+
           <button className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
             <PiPaintBucket size={18} className="" />
             <p className="text-[0.75rem] font-medium">Color</p>
@@ -75,14 +153,11 @@ export default function Toolbar({ searchQuery, onSearchChange }: ToolbarProps) {
             <GrShare size={12} className="" />
             <p className="text-[0.75rem] font-medium">Share and sync</p>
           </button>
-        </div>  
+        </div>
       </div>
 
       <div className="relative flex items-center">
-        <button
-          onClick={handleOpenSearchModal}
-          className=""
-        >
+        <button onClick={handleOpenSearchModal} className="">
           <CiSearch size={18} className="text-gray-600" />
         </button>
         {isSearchModalOpen && (

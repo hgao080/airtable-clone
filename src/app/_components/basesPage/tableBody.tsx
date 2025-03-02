@@ -25,8 +25,7 @@ export default function TableBody({
     estimateSize: () => 33,
     getScrollElement: () => tableContainerRef.current!,
     measureElement:
-      typeof window !== "undefined" &&
-      !navigator.userAgent.includes("Firefox")
+      typeof window !== "undefined" && !navigator.userAgent.includes("Firefox")
         ? (element) => element?.getBoundingClientRect().height
         : undefined,
     overscan: 5,
@@ -51,26 +50,40 @@ export default function TableBody({
       })}
       <tr
         style={{ transform: `translateY(${rowVirtualizer.getTotalSize()}px)` }}
-        className="absolute"
+        className=""
       >
-        {columns.map((column, index) => (
-          <td
-            key={column.id}
-            style={{ width: column.getSize() }}
-            className="border"
-          >
-            {index == 0 ? (
-              <button onClick={handleCreateRow} disabled={isCreating} className="flex h-8 w-full items-center pl-2 text-start text-[1.75rem] text-gray-400">
-                +
-              </button>
-            ) : null}
-            {index == 1 ? (
-              <button onClick={handleCreateKRows} disabled={isCreating} className="pl-2 font-[0.8rem] text-gray-400">
-                Add 100k
-              </button>
-            ) : null}
-          </td>
-        ))}
+        {columns.map((column, index) => {
+          if (index == 0 || index == 1) {
+            return (
+              <td
+                key={column.id}
+                style={{ width: column.getSize() }}
+                className="border"
+              >
+                {index == 0 ? (
+                  <button
+                    onClick={handleCreateRow}
+                    disabled={isCreating}
+                    className="flex h-8 w-full items-center pl-2 text-start text-[1.75rem] text-gray-400"
+                  >
+                    +
+                  </button>
+                ) : null}
+                {index == 1 ? (
+                  <button
+                    onClick={handleCreateKRows}
+                    disabled={isCreating}
+                    className="pl-2 font-[0.8rem] text-gray-400"
+                  >
+                    Add 100k
+                  </button>
+                ) : null}
+              </td>
+            );
+          }
+
+          return null;
+        })}
       </tr>
     </tbody>
   );
