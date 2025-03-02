@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiToggleRightFill } from "react-icons/pi";
 
@@ -14,6 +15,8 @@ export default function VisiblityModal({
   setColumnVisibility,
   columnVisibility,
 } : visibilityModalProps) {
+  const [searchField, setSearchField] = useState<string>("");
+  const filteredColumns = columns.filter((col) => col.name.toLowerCase().includes(searchField.toLowerCase()));
 
   const handleToggleVisibility = (columnId: string) => {
     setColumnVisibility({
@@ -25,14 +28,14 @@ export default function VisiblityModal({
   return (
     <div ref={ref} className="absolute left-0 top-8 z-50 flex min-w-[18rem] flex-col gap-2 rounded-md border border-gray-300 bg-white px-4 py-3 shadow-md">
       <div className="flex items-center justify-between">
-        <p className="text-[0.75rem] font-light">Find a field</p>
+        <input type="text" className="text-[0.75rem] focus:outline-none" value={searchField} onChange={(e) => setSearchField(e.target.value)} placeholder="Find a field"/>
         <GoQuestion size={14} className="text-gray-400" />
       </div>
 
       <div className="h-[2px] w-full bg-gray-200"></div>
 
       <div className="flex flex-col items-start">
-        {columns.map((col) => (
+        {filteredColumns.map((col) => (
           <button
             key={col.id}
             onClick={() => handleToggleVisibility(col.id)}

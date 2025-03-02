@@ -88,6 +88,7 @@ export default function TablesView() {
               value={table.id}
               className="flex items-center"
               onClick={() => {
+                setColumnFilters([]);
                 setSorting([]);
                 setSelectedTable(table.id);
               }}
@@ -132,6 +133,8 @@ export default function TablesView() {
         setSorting={setSorting}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnFilters={columnFilters}
+        setColumnFilters={setColumnFilters}
       />
 
       {selectedTable && (

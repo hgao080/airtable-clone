@@ -11,6 +11,7 @@ import {
   getFilteredRowModel,
   ColumnFiltersState,
   RowData,
+  FilterFn,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
@@ -299,6 +300,45 @@ export default function Table({
     },
   };
 
+  const textFilter: FilterFn<any> = (row, columnId, filterValue) => {
+    const cellValue = row.getValue(columnId)?.toString().toLowerCase() ?? "";
+
+    switch (filterValue.operator) {
+      case "contains":
+        return cellValue.includes(filterValue.value.toLowerCase())
+      case "not_contains":
+        if (filterValue.value === "") {
+          return true;
+        }
+        return !cellValue.includes(filterValue.value.toLowerCase())
+      case "equals":
+        return cellValue === filterValue.value.toLowerCase();
+      case "is_empty":
+        return cellValue.trim() === "";
+      case "is_not_empty":
+        return cellValue.trim() !== "";
+      default:
+        return true;
+    }
+  }
+
+  const numberFilter: FilterFn<any> = (row, columnId, filterValue) => {
+    const cellValue = Number(row.getValue(columnId));
+
+    if (isNaN(cellValue)) {
+      return false;
+    }
+
+    switch (filterValue.operator) {
+      case "greater_than":
+        return cellValue > Number(filterValue.value);
+      case "less_than":
+        return cellValue < Number(filterValue.value);
+      default:
+        return true;
+    }
+  }
+
   const columns = useMemo<ColumnDef<any>[]>(
     () => [
       rowNumColumn,
@@ -359,6 +399,7 @@ export default function Table({
           filterVariant:
             col.type === "NUMBER" ? ("range" as const) : ("text" as const),
         },
+        filterFn: col.type === "NUMBER" ? numberFilter : textFilter,
       })),
     ],
 
@@ -389,7 +430,6 @@ export default function Table({
       sorting,
       columnVisibility,
     },
-    onColumnFiltersChange: setColumnFilters,
     isMultiSortEvent: (e) => true,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -448,11 +488,6 @@ export default function Table({
                       className={`absolute right-[-2px] top-[3px] z-50 h-[80%] w-[3px] cursor-ew-resize rounded-full bg-blue-500 opacity-0 hover:opacity-100`}
                     ></div>
                   </div>
-                  {header.column.getCanFilter() ? (
-                      <div>
-                        <Filter column={header.column} />
-                      </div>
-                    ) : null}
                 </th>
               ))}
               <th className="relative border border-t-0 border-gray-300 bg-gray-100">

@@ -13,8 +13,10 @@ import { useEffect, useRef, useState } from "react";
 import SortModal from "./sortModal";
 
 import { api } from "~/trpc/react";
-import { SortingState } from "@tanstack/react-table";
+import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
+import FilterModal from "./filterModal";
+import { set } from "zod";
 
 interface ToolbarProps {
   searchQuery: string;
@@ -23,6 +25,8 @@ interface ToolbarProps {
   setSorting: (newSorting: SortingState) => void;
   setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
   columnVisibility: Record<string, boolean>;
+  columnFilters: ColumnFilter[];
+  setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
 }
 
 export default function Toolbar({
@@ -32,10 +36,14 @@ export default function Toolbar({
   setSorting,
   setColumnVisibility,
   columnVisibility,
+  columnFilters,
+  setColumnFilters,
 }: ToolbarProps) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const filterModalRef = useRef<HTMLDivElement>(null);
   const sortModalRef = useRef<HTMLDivElement>(null);
   const columnModalRef = useRef<HTMLDivElement>(null);
   const { data: table } = api.table.getTable.useQuery({ tableId });
@@ -43,15 +51,15 @@ export default function Toolbar({
 
   useEffect(() => {
     if (table) {
-      setTableColumns(table.columns);
       setColumnVisibility(
         Object.fromEntries(table.columns.map((col) => [col.id, true])),
-      );
+      ); 
+      setTableColumns(table.columns);
     }
   }, [table]);
 
   useEffect(() => {
-    if (isSortModalOpen || isVisibilityModalOpen) {
+    if (isSortModalOpen || isVisibilityModalOpen || isFilterModalOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     } else {
       document.removeEventListener("mousedown", handleClickOutside);
@@ -60,7 +68,7 @@ export default function Toolbar({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isSortModalOpen, isVisibilityModalOpen]);
+  }, [isSortModalOpen, isVisibilityModalOpen, isFilterModalOpen]);
 
   const handleOpenSearchModal = () => {
     setIsSearchModalOpen(true);
@@ -74,11 +82,15 @@ export default function Toolbar({
   const handleClickOutside = (e: MouseEvent) => {
     if (
       (sortModalRef.current &&
-      !sortModalRef.current.contains(e.target as Node)) || (columnModalRef.current &&
-      !columnModalRef.current.contains(e.target as Node))
+        !sortModalRef.current.contains(e.target as Node)) ||
+      (columnModalRef.current &&
+        !columnModalRef.current.contains(e.target as Node)) ||
+      (filterModalRef.current &&
+        !filterModalRef.current.contains(e.target as Node))
     ) {
       setIsSortModalOpen(false);
       setIsVisibilityModalOpen(false);
+      setIsFilterModalOpen(false);
     }
   };
 
@@ -103,7 +115,10 @@ export default function Toolbar({
             <SlArrowDown size={10} />
           </button>
           <div className="relative flex items-center">
-            <button onClick={() => setIsVisibilityModalOpen(true)} className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
+            <button
+              onClick={() => setIsVisibilityModalOpen(true)}
+              className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100"
+            >
               <BsEyeSlash size={16} className="" />
               <p className="text-[0.75rem] font-medium">Hide Fields</p>
             </button>
@@ -117,10 +132,24 @@ export default function Toolbar({
             )}
           </div>
 
-          <button className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
-            <IoFilterSharp size={14} className="" />
-            <p className="text-[0.75rem] font-medium">Filter</p>
-          </button>
+          <div className="relative flex items-center">
+            <button
+              onClick={() => {
+                setIsFilterModalOpen(true);
+              }}
+              className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100"
+            >
+              <IoFilterSharp size={14} className="" />
+              <p className="text-[0.75rem] font-medium">Filter</p>
+            </button>
+            {isFilterModalOpen && <FilterModal
+              ref={filterModalRef}
+              columns={tableColumns}
+              columnFilters={columnFilters}
+              setColumnFilters={setColumnFilters}
+            />}
+          </div>
+
           <button className="flex items-center gap-1 rounded-md px-2 py-[0.1rem] hover:bg-gray-100">
             <CiViewList size={16} className="" />
             <p className="text-[0.75rem] font-medium">Group</p>
