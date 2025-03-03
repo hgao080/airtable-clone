@@ -19,7 +19,7 @@ export default async function Home() {
     <HydrateClient>
       {session?.user ? (
         <div className="flex flex-col min-h-screen">
-          <Header />
+          <Header user={session?.user} />
           <main className="flex flex-1 h-full">
             <Sidebar />
             <div className="flex flex-col flex-1 p-12 py-7 bg-gray-100">

@@ -1,13 +1,42 @@
+"use client"
+
 import Image from "next/image";
 import Link from "next/link";
 import { LuMenu } from "react-icons/lu";
 import { CiSearch } from "react-icons/ci";
 import { PiBell } from "react-icons/pi";
 import { IoHelpCircleOutline } from "react-icons/io5";
-import { auth } from "~/server/auth";
+import { useEffect, useRef, useState } from "react";
+import ProfileModal from "../profileModal";
 
-export async function Header() {
-  const session = await auth();
+interface HeaderProps {
+  user: any
+}
+
+export function Header({ user } : HeaderProps) {
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const profileModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isProfileModalOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfileModalOpen]);
+
+  const handleClickOutside = (e: MouseEvent) => {
+    if (
+      profileModalRef.current &&
+      !profileModalRef.current.contains(e.target as Node)
+    ) {
+      setIsProfileModalOpen(false);
+    }
+  };
 
   return (
     <header className="flex h-[56px] w-full border-b border-b-gray-300">
@@ -28,7 +57,7 @@ export async function Header() {
           </Link>
         </div>
 
-        <div className="flex flex-[0.75] max-w-[22rem] items-center justify-between">
+        <div className="flex max-w-[22rem] flex-[0.75] items-center justify-between">
           <div className="flex h-[60%] flex-auto items-center justify-between rounded-full border border-gray-200 px-4 text-[0.8rem] shadow-sm hover:border-gray-300 hover:shadow-md">
             <div className="flex gap-2">
               <CiSearch size={17} className="translate-y-[1px] text-black" />
@@ -40,20 +69,23 @@ export async function Header() {
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-4 pr-1">
-            <button className="flex items-center gap-1 px-3 py-1 hover:bg-gray-200 rounded-full">
-                <IoHelpCircleOutline size={16} className="text-black" />
-                <p className="text-[0.8rem]">Help</p>
-            </button>
-
-          <button className="border border-gray-200 rounded-full p-[0.4rem] hover:bg-gray-200">
-            <PiBell size={16} className="text-black translate-y-[1px]" />
+          <button className="flex items-center gap-1 rounded-full px-3 py-1 hover:bg-gray-200">
+            <IoHelpCircleOutline size={16} className="text-black" />
+            <p className="text-[0.8rem]">Help</p>
           </button>
 
-          <img
-            src={session?.user?.image ?? ""}
-            alt=""
-            className="aspect-square h-auto w-[30px] rounded-full hover:cursor-pointer"
-          />
+          <button className="rounded-full border border-gray-200 p-[0.4rem] hover:bg-gray-200">
+            <PiBell size={16} className="translate-y-[1px] text-black" />
+          </button>
+
+          <div onClick={() => setIsProfileModalOpen(true)} className="flex items-center relative">
+            <img
+              src={user?.image ?? ""}
+              alt=""
+              className="aspect-square h-auto w-[30px] rounded-full hover:cursor-pointer"
+            />
+            {isProfileModalOpen && <ProfileModal ref={profileModalRef} user={user}/>}
+          </div>
         </div>
       </nav>
     </header>
