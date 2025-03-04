@@ -8,7 +8,9 @@ import { SlArrowDown } from "react-icons/sl";
 import { FaPlus } from "react-icons/fa6";
 import Toolbar from "./toolbar";
 import Table from "./table";
+import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
+import { set } from "zod";
 
 export default function TablesView() {
   const router = useRouter();
@@ -16,11 +18,17 @@ export default function TablesView() {
   const baseId = searchParams.get("baseId");
 
   const [selectedTable, setSelectedTable] = useState<string | undefined>("");
-  const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: tables, refetch } = api.table.getTablesByBase.useQuery({
+  const { data: tables, refetch: refetchTables } = api.table.getTablesByBase.useQuery({
     baseId,
   });
+  const { data: views, refetch: refetchViews } = api.view.getViewsByTable.useQuery({
+    tableId: selectedTable ?? "",
+  });
+  
+  const [selectedView, setSelectedView] = useState<string | undefined>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
 
@@ -30,12 +38,27 @@ export default function TablesView() {
     Record<string, boolean>
   >({});
 
+  const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
+
   useEffect(() => {
     if (tables) {
       setSelectedTable(tables[tables.length - 1]?.id);
       setLocalTables(tables);
     }
   }, [tables]);
+
+  useEffect(() => {
+    if (views) {
+      setSelectedView(views[0]?.id);
+      setColumnVisibility(views[0]?.columnVisibility as Record<string, boolean> ?? {});
+    }
+  }, [views])
+
+  useEffect(() => {
+    if (selectedTable) {
+      void refetchViews();
+    }
+  }, [selectedTable])
 
   if (!baseId) {
     router.back();
@@ -67,7 +90,7 @@ export default function TablesView() {
     },
     onSuccess: (createdTable) => {
       setIsCreatingTable(false);
-      void refetch();
+      void refetchTables();
     },
   });
 
@@ -81,7 +104,9 @@ export default function TablesView() {
   if (baseId === "creating") {
     return (
       <div className="flex flex-auto flex-col items-center justify-center">
-        <h1 className="text-[1.5rem] font-semibold text-gray-700">Creating Base...</h1>
+        <h1 className="text-[1.5rem] font-semibold text-gray-700">
+          Creating Base...
+        </h1>
       </div>
     );
   }
@@ -139,22 +164,29 @@ export default function TablesView() {
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
         tableId={selectedTable}
         setSorting={setSorting}
+        selectedView={selectedView}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
+        isViewsModalOpen={isViewsModalOpen}
+        setIsViewsModalOpen={setIsViewsModalOpen}
       />
 
-      {selectedTable && (
-        <Table
-          tableId={selectedTable}
-          searchQuery={searchQuery}
-          sorting={sorting}
-          columnFilters={columnFilters}
-          setColumnFilters={setColumnFilters}
-          columnVisibility={columnVisibility}
-        />
-      )}
+      <div className="flex flex-auto">
+        {isViewsModalOpen && <ViewsModal views={views ?? []} selectedView={selectedView ?? ""} setSelectedView={setSelectedView}/>}
+
+        {selectedTable && (
+          <Table
+            tableId={selectedTable}
+            searchQuery={searchQuery}
+            sorting={sorting}
+            columnFilters={columnFilters}
+            setColumnFilters={setColumnFilters}
+            columnVisibility={columnVisibility}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import { CiText } from "react-icons/ci";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { z } from "zod";
 
@@ -13,6 +12,14 @@ export const tableRouter = createTRPCRouter({
             name: input.name,
           },
         });
+
+        await prisma.view.create({
+          data: {
+            name: "Grid View",
+            tableId: newTable.id,
+            columnVisibility: {}
+          },
+        })
 
         const defaultColumns = ["Name", "Notes", "Assignee", "Status"];
         const columns = await Promise.all(

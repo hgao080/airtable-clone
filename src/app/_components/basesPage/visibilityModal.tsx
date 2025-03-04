@@ -2,11 +2,14 @@ import { useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiToggleRightFill } from "react-icons/pi";
 
+import { api } from "~/trpc/react";
+
 interface visibilityModalProps {
   ref: React.RefObject<HTMLDivElement>;
   columns: any[];
   columnVisibility: Record<string, boolean>;
   setColumnVisibility: (newVisibility: Record<string, boolean>) => void;
+  selectedView: string;
 }
 
 export default function VisiblityModal({
@@ -14,14 +17,23 @@ export default function VisiblityModal({
   columns,
   setColumnVisibility,
   columnVisibility,
+  selectedView
 } : visibilityModalProps) {
   const [searchField, setSearchField] = useState<string>("");
   const filteredColumns = columns.filter((col) => col.name.toLowerCase().includes(searchField.toLowerCase()));
 
+  const updateColumnVisibility = api.view.updateColumnVisibility.useMutation();
+
   const handleToggleVisibility = (columnId: string) => {
-    setColumnVisibility({
+    const newColumnVisibility = {
       ...columnVisibility,
       [columnId]: !columnVisibility[columnId]
+    }
+
+    setColumnVisibility(newColumnVisibility);
+    updateColumnVisibility.mutate({
+      viewId: selectedView,
+      columnVisibility: newColumnVisibility
     })
   };
 

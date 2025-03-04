@@ -441,7 +441,7 @@ export default function Table({
 
   if (!tableColumns || !tableRows || tableId === "temp") {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-auto items-center justify-center">
         <div className="text-[0.75rem] text-gray-500">Loading...</div>
       </div>
     );
@@ -450,7 +450,7 @@ export default function Table({
   return (
     <div
       ref={tableContainerRef}
-      className="relative h-full overflow-auto border bg-gray-50"
+      className="relative h-full w-full overflow-auto border bg-gray-50"
     >
       <table className="grid">
         <thead className="sticky top-0 z-10 grid">

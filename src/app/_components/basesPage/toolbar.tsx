@@ -16,7 +16,6 @@ import { api } from "~/trpc/react";
 import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
 import FilterModal from "./filterModal";
-import { set } from "zod";
 
 interface ToolbarProps {
   searchQuery: string;
@@ -24,9 +23,12 @@ interface ToolbarProps {
   tableId: string | undefined;
   setSorting: (newSorting: SortingState) => void;
   setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
+  selectedView: string | undefined;
   columnVisibility: Record<string, boolean>;
   columnFilters: ColumnFilter[];
   setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
+  isViewsModalOpen: boolean;
+  setIsViewsModalOpen: (isOpen: boolean) => void;
 }
 
 export default function Toolbar({
@@ -38,7 +40,13 @@ export default function Toolbar({
   columnVisibility,
   columnFilters,
   setColumnFilters,
+  isViewsModalOpen,
+  setIsViewsModalOpen,
+  selectedView,
 }: ToolbarProps) {
+  const { data: table } = api.table.getTable.useQuery({ tableId });
+  const [tableColumns, setTableColumns] = useState(table?.columns ?? []);
+
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);
@@ -46,14 +54,9 @@ export default function Toolbar({
   const filterModalRef = useRef<HTMLDivElement>(null);
   const sortModalRef = useRef<HTMLDivElement>(null);
   const columnModalRef = useRef<HTMLDivElement>(null);
-  const { data: table } = api.table.getTable.useQuery({ tableId });
-  const [tableColumns, setTableColumns] = useState(table?.columns ?? []);
 
   useEffect(() => {
     if (table) {
-      setColumnVisibility(
-        Object.fromEntries(table.columns.map((col) => [col.id, true])),
-      ); 
       setTableColumns(table.columns);
     }
   }, [table]);
@@ -97,13 +100,13 @@ export default function Toolbar({
   return (
     <div className="flex justify-between border-b border-gray-300 px-3 py-2">
       <div className="flex items-center">
-        <div className="flex items-center gap-1 rounded-md px-2 py-1 text-[0.75rem] font-medium hover:bg-gray-100">
+        <button onClick={() => setIsViewsModalOpen(!isViewsModalOpen)} className={`flex items-center gap-1 rounded-md px-2 py-1 text-[0.75rem] font-medium hover:bg-gray-100 ${isViewsModalOpen ? "bg-gray-100" : ""}`}>
           <LuMenu
             size={20}
             className="w-[1rem] translate-y-[-1px] text-gray-600"
           />
           Views
-        </div>
+        </button>
 
         <div className="mx-3 h-[60%] w-[1px] bg-gray-300"></div>
 
@@ -128,6 +131,7 @@ export default function Toolbar({
                 columns={tableColumns}
                 columnVisibility={columnVisibility}
                 setColumnVisibility={setColumnVisibility}
+                selectedView={selectedView ?? ""}
               />
             )}
           </div>

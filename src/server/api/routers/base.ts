@@ -7,19 +7,27 @@ export const baseRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             const userId = ctx.session.user.id;
 
-            return ctx.db.$transaction(async (prisma) => {
-                const base = await prisma.base.create({
-                    data: {
-                        name: input.name,
-                        user: { connect: { id: userId }},
-                    },
-                });
+            const base = await ctx.db.base.create({
+                data: {
+                    name: input.name,
+                    user: { connect: { id: userId }},
+                },
+            });
 
+            return ctx.db.$transaction(async (prisma) => {
                 const table = await prisma.table.create({
                     data: {
                         name: "Table 1",
                         baseId: base.id,
                     },
+                })
+
+                await prisma.view.create({
+                    data: {
+                        name: "Grid View",
+                        tableId: table.id,
+                        columnVisibility: {}
+                    }
                 })
 
                 const defaultColumns = ["Name", "Notes", "Assignee", "Status"];
