@@ -13,14 +13,6 @@ export const tableRouter = createTRPCRouter({
           },
         });
 
-        await prisma.view.create({
-          data: {
-            name: "Grid View",
-            tableId: newTable.id,
-            columnVisibility: {}
-          },
-        })
-
         const defaultColumns = ["Name", "Notes", "Assignee", "Status"];
         const columns = await Promise.all(
           defaultColumns.map((colName) => {
@@ -33,6 +25,19 @@ export const tableRouter = createTRPCRouter({
             });
           }),
         );
+
+        const columnsVisibility = columns.reduce((acc, column) => {
+          acc[column.id] = true;
+          return acc;
+        }, {} as Record<string, boolean>)
+
+        await prisma.view.create({
+          data: {
+            name: "Grid View",
+            tableId: newTable.id,
+            columnVisibility: columnsVisibility
+          },
+        })
 
         const rows = await Promise.all(
           Array.from({ length: 3 }).map(() => {

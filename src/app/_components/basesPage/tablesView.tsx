@@ -55,7 +55,7 @@ export default function TablesView() {
   }, [views])
 
   useEffect(() => {
-    if (selectedTable) {
+    if (selectedTable && selectedTable !== "temp") {
       void refetchViews();
     }
   }, [selectedTable])
