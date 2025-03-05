@@ -42,7 +42,9 @@ export const baseRouter = createTRPCRouter({
                     data: {
                         name: "Grid View",
                         tableId: table.id,
-                        columnVisibility: columnsVisibility
+                        columnVisibility: columnsVisibility,
+                        sortingState: [],
+                        columnFilters: [],
                     }
                 })
 
