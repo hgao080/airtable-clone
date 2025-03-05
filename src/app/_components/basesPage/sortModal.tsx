@@ -1,6 +1,5 @@
 import { SortingState } from "@tanstack/react-table";
 import { GoQuestion } from "react-icons/go";
-import { set } from "zod";
 
 import { api } from "~/trpc/react";
 
@@ -12,6 +11,7 @@ interface sortModalProps {
   selectedView: string;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
+  refetchRows: () => void;
 }
 
 export default function SortModal({
@@ -22,9 +22,14 @@ export default function SortModal({
   selectedView,
   localViews,
   setLocalViews,
+  refetchRows,
 }: sortModalProps) {
 
-  const updateSortingState = api.view.updateSortingState.useMutation();
+  const updateSortingState = api.view.updateSortingState.useMutation({
+    onSuccess: () => {
+      void refetchRows();
+    }
+  });
 
   const handleToggleSort = (columnId: string) => {
     const existingSort = sorting.find((sort: any) => sort.id === columnId);

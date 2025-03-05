@@ -12,6 +12,7 @@ interface visibilityModalProps {
   selectedView: string;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
+  refetchColumns: () => void;
 }
 
 export default function VisiblityModal({
@@ -22,11 +23,16 @@ export default function VisiblityModal({
   selectedView,
   localViews,
   setLocalViews,
+  refetchColumns,
 } : visibilityModalProps) {
   const [searchField, setSearchField] = useState<string>("");
   const filteredColumns = columns.filter((col) => col.name.toLowerCase().includes(searchField.toLowerCase()));
 
-  const updateColumnVisibility = api.view.updateColumnVisibility.useMutation({});
+  const updateColumnVisibility = api.view.updateColumnVisibility.useMutation({
+    onSuccess: () => {
+      void refetchColumns();
+    }
+  });
 
   const handleToggleVisibility = (columnId: string) => {
     const newColumnVisibility = {

@@ -14,6 +14,7 @@ interface FilterModalProps {
   selectedView: string;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
+  refetchRows: () => void;
 }
 
 interface ColumnFilterValue {
@@ -78,6 +79,7 @@ export default function FilterModal({
   selectedView,
   localViews,
   setLocalViews,
+  refetchRows,
 }: FilterModalProps) {
   const [conditions, setConditions] = useState<Condition[]>(
     columnFilters?.map((filter, index) => ({
@@ -93,7 +95,11 @@ export default function FilterModal({
     ],
   );
 
-  const updateColumnVisibility = api.view.updateColumnFilters.useMutation();
+  const updateColumnFilters = api.view.updateColumnFilters.useMutation({
+    onSuccess: () => {
+      void refetchRows();
+    }
+  });
 
   const handleColumnChange = (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -109,7 +115,9 @@ export default function FilterModal({
       return condition;
     });
 
-    updateColumnVisibility.mutate({
+    console.log(newConditions)
+
+    updateColumnFilters.mutate({
       viewId: selectedView,
       columnFilters: newConditions
     });
@@ -147,6 +155,11 @@ export default function FilterModal({
       return condition;
     });
 
+    updateColumnFilters.mutate({
+      viewId: selectedView,
+      columnFilters: newConditions
+    });
+
     setConditions(newConditions);
     setColumnFilters(newConditions);
   };
@@ -166,6 +179,11 @@ export default function FilterModal({
         };
       }
       return condition;
+    });
+
+    updateColumnFilters.mutate({
+      viewId: selectedView,
+      columnFilters: newConditions
     });
 
     setConditions(newConditions);
@@ -189,6 +207,11 @@ export default function FilterModal({
     const newConditions = conditions.filter(
       (condition) => condition.rowId !== rowId,
     );
+
+    updateColumnFilters.mutate({
+      viewId: selectedView,
+      columnFilters: newConditions
+    });
 
     setConditions(newConditions);
     setColumnFilters(newConditions);

@@ -16,7 +16,10 @@ import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
 import FilterModal from "./filterModal";
 
+import { api } from "~/trpc/react";
+
 interface ToolbarProps {
+  tableId: string;
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
   sorting: SortingState;
@@ -30,10 +33,12 @@ interface ToolbarProps {
   setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
   isViewsModalOpen: boolean;
   setIsViewsModalOpen: (isOpen: boolean) => void;
-  localColumns: any[];
+  refetchColumns: () => void;
+  refetchRows: () => void;
 }
 
 export default function Toolbar({
+  tableId,
   searchQuery,
   onSearchChange,
   sorting,
@@ -45,10 +50,15 @@ export default function Toolbar({
   isViewsModalOpen,
   setIsViewsModalOpen,
   selectedView,
-  localColumns,
   localViews,
   setLocalViews,
+  refetchColumns,
+  refetchRows,
 }: ToolbarProps) {
+  const { data: columns } = api.column.getColumns.useQuery({
+    tableId: tableId ?? "",
+  });
+
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);
@@ -124,12 +134,13 @@ export default function Toolbar({
             {isVisibilityModalOpen && (
               <VisiblityModal
                 ref={columnModalRef}
-                columns={localColumns}
+                columns={columns ?? []}
                 columnVisibility={columnVisibility}
                 setColumnVisibility={setColumnVisibility}
                 selectedView={selectedView ?? ""}
                 localViews={localViews}
                 setLocalViews={setLocalViews}
+                refetchColumns={refetchColumns}
               />
             )}
           </div>
@@ -146,12 +157,13 @@ export default function Toolbar({
             </button>
             {isFilterModalOpen && <FilterModal
               ref={filterModalRef}
-              columns={localColumns}
+              columns={columns ?? []}
               columnFilters={columnFilters}
               setColumnFilters={setColumnFilters}
               localViews={localViews}
               setLocalViews={setLocalViews}
               selectedView={selectedView ?? ""}
+              refetchRows={refetchRows}
             />}
           </div>
 
@@ -170,12 +182,13 @@ export default function Toolbar({
             {isSortModalOpen && (
               <SortModal
                 ref={sortModalRef}
-                columns={localColumns}
+                columns={columns ?? []}
                 sorting={sorting}
                 setSorting={setSorting}
                 selectedView={selectedView ?? ""}
                 localViews={localViews}
                 setLocalViews={setLocalViews}
+                refetchRows={refetchRows}
               />
             )}
           </div>

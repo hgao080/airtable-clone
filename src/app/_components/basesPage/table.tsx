@@ -3,18 +3,17 @@ import { api } from "~/trpc/react";
 
 import {
   type ColumnDef,
+  type SortingState,
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type SortingState,
-  getSortedRowModel,
-  getFilteredRowModel,
   ColumnFiltersState,
   RowData,
   FilterFn,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
+import { Cell } from "@prisma/client";
 
 interface TableProps {
   tableId: string;
@@ -25,6 +24,10 @@ interface TableProps {
   columnVisibility: Record<string, boolean>;
   localTableColumns: any[];
   setLocalTableColumns: (newColumns: any[]) => void;
+  refetchColumns: () => void;
+  localTableRows: any[];
+  setLocalTableRows: (newRows: any[]) => void;
+  refetchRows: () => void;
 }
 
 declare module "@tanstack/react-table" {
@@ -42,16 +45,11 @@ export default function Table({
   columnVisibility,
   localTableColumns,
   setLocalTableColumns,
+  refetchColumns,
+  localTableRows,
+  setLocalTableRows,
+  refetchRows,
 }: TableProps) {
-  const { data: tableColumns, refetch: refetchColumns } =
-    api.column.getColumns.useQuery({
-      tableId,
-    });
-  const { data: tableRows, refetch: refetchRows } = api.row.getRows.useQuery({
-    tableId,
-  });
-
-  const [localTableRows, setLocalTableRows] = useState(tableRows ?? []);
 
   const [showColumnModal, setShowColumnModal] = useState(false);
 
@@ -67,18 +65,6 @@ export default function Table({
     columnId: string;
   } | null>(null);
   const [editValue, setEditValue] = useState("");
-
-  useEffect(() => {
-    if (tableRows) {
-      setLocalTableRows(tableRows);
-    }
-  }, [tableRows]);
-
-  useEffect(() => {
-    if (tableColumns) {
-      setLocalTableColumns(tableColumns);
-    }
-  }, [tableColumns]);
 
   const createColumn = api.column.addColumn.useMutation({
     onMutate: async (newColumn) => {
@@ -98,8 +84,9 @@ export default function Table({
         ...localTableColumns,
         placeholderColumn,
       ]);
-      setLocalTableRows((prevRows) =>
-        prevRows.map((row) => ({
+
+      setLocalTableRows([
+        ...localTableRows.map((row) => ({
           ...row,
           cells: [
             ...row.cells,
@@ -109,9 +96,9 @@ export default function Table({
               columnId: tempId,
               rowId: row.id,
             },
-          ],
-        })),
-      );
+          ]
+        }))
+      ])
 
       return { previousColumns, tempId };
     },
@@ -147,7 +134,10 @@ export default function Table({
         })),
       };
 
-      setLocalTableRows((prevRows) => [...prevRows, placeholderRow]);
+      setLocalTableRows([
+        ...localTableRows,
+        placeholderRow,
+      ]);
 
       return { previousRows, tempId };
     },
@@ -160,17 +150,6 @@ export default function Table({
     },
     onSuccess: (createdRow, data, context) => {
       setIsCreatingRow(false);
-
-      if (!createdRow) {
-        return;
-      }
-      setLocalTableRows((prevRows) =>
-        prevRows.map((row) =>
-          row.id === context?.tempId
-            ? { ...row, id: createdRow.id, cells: createdRow.cells }
-            : row,
-        ),
-      );
       void refetchRows();
     },
   });
@@ -189,26 +168,23 @@ export default function Table({
 
   const updateCell = api.cell.updateCell.useMutation({
     onMutate: async (updatedCell) => {
-      setLocalTableRows((prevRows) => {
-        return prevRows.map((row) =>
-          row.id === updatedCell.rowId
+      setLocalTableRows([
+        ...localTableRows.map((row) => {
+          return row.id === updatedCell.rowId
             ? {
                 ...row,
-                cells: row.cells.map((cell) =>
+                cells: row.cells.map((cell: Cell) =>
                   cell.columnId === updatedCell.columnId
                     ? { ...cell, value: updatedCell.value }
                     : cell,
                 ),
               }
-            : row,
-        );
-      });
-
-      return;
+            : row;
+        }),
+      ])
     },
     onError: () => {
       setLocalTableRows(localTableRows);
-      return;
     },
   });
 
@@ -218,7 +194,7 @@ export default function Table({
     if (!columnName) {
       createColumn.mutate({
         tableId,
-        name: "Label " + (tableColumns?.length ?? 0),
+        name: "Label " + (localTableColumns?.length ?? 0),
         type: columnType,
       });
     } else {
@@ -408,7 +384,7 @@ export default function Table({
       localTableRows.map((row) => {
         const rowData: Record<string, any> = {};
 
-        row.cells.forEach((cell) => {
+        row.cells.forEach((cell: Cell) => {
           const columnDef = localTableColumns.find(
             (col) => col.id === cell.columnId,
           );
@@ -429,14 +405,12 @@ export default function Table({
     },
     isMultiSortEvent: (e) => true,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     columnResizeMode: "onChange",
   });
 
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
 
-  if (!tableColumns || !tableRows || tableId === "temp") {
+  if (!localTableColumns || !localTableRows || tableId === "temp") {
     return (
       <div className="flex h-full flex-auto items-center justify-center">
         <div className="text-[0.75rem] text-gray-500">Loading...</div>

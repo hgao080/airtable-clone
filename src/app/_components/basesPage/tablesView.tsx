@@ -17,28 +17,34 @@ export default function TablesView() {
   const baseId = searchParams.get("baseId");
 
   const [selectedTable, setSelectedTable] = useState<string>("");
+  const [selectedView, setSelectedView] = useState<string>("");
 
   const { data: tables, refetch: refetchTables } =
     api.table.getTablesByBase.useQuery({
       baseId,
     });
   const { data: columns, refetch: refetchColumns } =
-    api.column.getColumns.useQuery({
+    api.column.getVisibleColumns.useQuery({
       tableId: selectedTable,
+      viewId: selectedView,
     });
+  const { data: rows, refetch: refetchRows } = api.row.getRowsFilteredSorted.useQuery({
+    tableId: selectedTable,
+    viewId: selectedView,
+  });
   const { data: views, refetch: refetchViews } =
     api.view.getViewsByTable.useQuery({
       tableId: selectedTable,
     });
 
   const [localViews, setLocalViews] = useState(views ?? []);
-  const [selectedView, setSelectedView] = useState<string | undefined>("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
 
   const [localColumns, setLocalColumns] = useState(columns ?? []);
+  const [localRows, setLocalRows] = useState(rows ?? []);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -69,6 +75,12 @@ export default function TablesView() {
   }, [columns]);
 
   useEffect(() => {
+    if (rows) {
+      setLocalRows(rows);
+    }
+  }, [rows])
+
+  useEffect(() => {
     if (views) {
       setLocalViews(views);
       setSelectedView(views[0]?.id ?? "");
@@ -77,11 +89,20 @@ export default function TablesView() {
 
   useEffect(() => {
     if (selectedView) {
-      setColumnVisibility(localViews?.find((view) => view.id === selectedView)?.columnVisibility as unknown as Record<string, boolean> ?? {});
-      setSorting(localViews?.find((view) => view.id === selectedView)?.sortingState as unknown as SortingState ?? []);
-      setColumnFilters(localViews?.find((view) => view.id === selectedView)?.columnFilters as unknown as ColumnFiltersState ?? []);
+      setColumnVisibility(
+        (localViews?.find((view) => view.id === selectedView)
+          ?.columnVisibility as unknown as Record<string, boolean>) ?? {},
+      );
+      setSorting(
+        (localViews?.find((view) => view.id === selectedView)
+          ?.sortingState as unknown as SortingState) ?? [],
+      );
+      setColumnFilters(
+        (localViews?.find((view) => view.id === selectedView)
+          ?.columnFilters as unknown as ColumnFiltersState) ?? [],
+      );
     }
-  }, [selectedView])
+  }, [selectedView]);
 
   if (!baseId) {
     router.back();
@@ -144,7 +165,10 @@ export default function TablesView() {
               value={table.id}
               className="flex items-center"
               onClick={() => {
+                setLocalColumns([]);
+                setLocalRows([]);
                 setSelectedTable(table.id);
+                void refetchViews();
               }}
             >
               <div
@@ -181,6 +205,7 @@ export default function TablesView() {
       </div>
 
       <Toolbar
+        tableId={selectedTable ?? ""}
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
         sorting={sorting}
@@ -194,7 +219,8 @@ export default function TablesView() {
         setColumnFilters={setColumnFilters}
         isViewsModalOpen={isViewsModalOpen}
         setIsViewsModalOpen={setIsViewsModalOpen}
-        localColumns={localColumns}
+        refetchColumns={refetchColumns}
+        refetchRows={refetchRows}
       />
 
       <div className="flex flex-auto">
@@ -218,6 +244,10 @@ export default function TablesView() {
             columnVisibility={columnVisibility}
             localTableColumns={localColumns}
             setLocalTableColumns={setLocalColumns}
+            refetchColumns={refetchColumns}
+            localTableRows={localRows}
+            setLocalTableRows={setLocalRows}
+            refetchRows={refetchRows}
           />
         )}
       </div>
