@@ -1,15 +1,45 @@
 import { GoSearch } from "react-icons/go";
+import { set } from "zod";
 
 import { api } from "~/trpc/react";
 
 interface ViewsModalProps {
   views: any[];
+  setLocalViews: (newViews: any[]) => void;
   selectedView: string;
   setSelectedView: (viewId: string) => void;
+  tableId: string;
 }
 
-export default function ViewsModal({ views, selectedView, setSelectedView }: ViewsModalProps) {
-  
+export default function ViewsModal({
+  views,
+  selectedView,
+  setSelectedView,
+  tableId,
+  setLocalViews,
+}: ViewsModalProps) {
+
+  const createView = api.view.createView.useMutation({
+    onSuccess: (createdView) => {
+      setLocalViews(
+        views.map((view) =>
+          view.id === "temp" ? createdView : view
+        )
+      )
+      setSelectedView(createdView.id);
+    },
+  });
+
+  const handleCreateView = () => {
+    createView.mutate({
+      tableId: tableId,
+      name: "View " + views.length,
+    });
+
+    setLocalViews([...views, { name: "View " + views.length, id: "temp" }]);
+    setSelectedView("temp");
+  };
+
   return (
     <div className="flex min-w-[17.5rem] max-w-[18rem] flex-auto flex-col justify-between px-4 py-2">
       <div className="flex flex-col">
@@ -20,9 +50,13 @@ export default function ViewsModal({ views, selectedView, setSelectedView }: Vie
             className="flex w-0 flex-auto px-4 py-1 outline-none"
           />
         </div>
-        <div className="flex flex-auto mt-2">
+        <div className="mt-2 flex flex-col flex-auto gap-1">
           {views?.map((view) => (
-            <button onClick={() => setSelectedView(view.id)} key={view.id} className={`flex flex-auto px-2 py-1 rounded-md hover:bg-blue-100 text-[0.8rem] ${selectedView === view.id ? "bg-blue-100" : ""}`}>
+            <button
+              onClick={() => setSelectedView(view.id)}
+              key={view.id}
+              className={`flex flex-auto rounded-md px-2 py-1 text-[0.8rem] hover:bg-blue-100 ${selectedView === view.id ? "bg-blue-100" : ""}`}
+            >
               {view.name}
             </button>
           ))}
@@ -35,12 +69,12 @@ export default function ViewsModal({ views, selectedView, setSelectedView }: Vie
         <h2 className="my-4 px-2 text-[1rem] font-medium">Create...</h2>
 
         <div className="flex flex-col">
-          <div className="flex items-center justify-between rounded-md px-2 py-1 hover:bg-gray-100">
+          <button onClick={handleCreateView} className="flex items-center justify-between rounded-md px-2 py-1 hover:bg-gray-100">
             <div className="">
               <p className="text-[0.8rem] font-medium">Grid</p>
             </div>
             <p className="my-[-5px] text-[1.5rem] text-gray-400">+</p>
-          </div>
+          </button>
           <div className="flex items-center justify-between rounded-md px-2 py-1 hover:bg-gray-100">
             <div className="">
               <p className="text-[0.8rem] font-medium">Calendar</p>

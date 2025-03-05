@@ -10,6 +10,8 @@ interface visibilityModalProps {
   columnVisibility: Record<string, boolean>;
   setColumnVisibility: (newVisibility: Record<string, boolean>) => void;
   selectedView: string;
+  localViews: any[];
+  setLocalViews: (newViews: any[]) => void;
 }
 
 export default function VisiblityModal({
@@ -17,12 +19,14 @@ export default function VisiblityModal({
   columns,
   setColumnVisibility,
   columnVisibility,
-  selectedView
+  selectedView,
+  localViews,
+  setLocalViews,
 } : visibilityModalProps) {
   const [searchField, setSearchField] = useState<string>("");
   const filteredColumns = columns.filter((col) => col.name.toLowerCase().includes(searchField.toLowerCase()));
 
-  const updateColumnVisibility = api.view.updateColumnVisibility.useMutation();
+  const updateColumnVisibility = api.view.updateColumnVisibility.useMutation({});
 
   const handleToggleVisibility = (columnId: string) => {
     const newColumnVisibility = {
@@ -30,11 +34,23 @@ export default function VisiblityModal({
       [columnId]: !columnVisibility[columnId]
     }
 
-    setColumnVisibility(newColumnVisibility);
     updateColumnVisibility.mutate({
       viewId: selectedView,
       columnVisibility: newColumnVisibility
     })
+
+    setLocalViews(
+      localViews.map((view) => {
+        if (view.id === selectedView) {
+          return {
+            ...view,
+            columnVisibility: newColumnVisibility
+          }
+        }
+        return view;
+      })
+    )
+    setColumnVisibility(newColumnVisibility);
   };
 
   return (

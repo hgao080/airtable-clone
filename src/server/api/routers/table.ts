@@ -35,7 +35,9 @@ export const tableRouter = createTRPCRouter({
           data: {
             name: "Grid View",
             tableId: newTable.id,
-            columnVisibility: columnsVisibility
+            columnVisibility: columnsVisibility,
+            sortingState: [],
+            columnFilters: [],
           },
         })
 
@@ -78,7 +80,11 @@ export const tableRouter = createTRPCRouter({
 
       return ctx.db.table.findUnique({
         where: { id: input.tableId },
-        include: { columns: true },
+        include: { columns: {
+          orderBy: {
+            created: 'asc'
+          }
+        } },
       });
     }),
 

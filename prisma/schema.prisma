@@ -91,6 +91,7 @@ model View {
   columnVisibility Json
   sortingState Json[]
   columnFilters Json[]
+  created DateTime @default(now())
   table Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
 }
 

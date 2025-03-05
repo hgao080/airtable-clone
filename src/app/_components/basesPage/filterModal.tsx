@@ -3,12 +3,17 @@ import { useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiTrash } from "react-icons/pi";
 import { RiDraggable } from "react-icons/ri";
+import { set } from "zod";
+import { api } from "~/trpc/react";
 
 interface FilterModalProps {
   ref: React.RefObject<HTMLDivElement>;
   columns: any[];
   columnFilters: ColumnFilter[];
   setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
+  selectedView: string;
+  localViews: any[];
+  setLocalViews: (newViews: any[]) => void;
 }
 
 interface ColumnFilterValue {
@@ -70,6 +75,9 @@ export default function FilterModal({
   columns,
   setColumnFilters,
   columnFilters,
+  selectedView,
+  localViews,
+  setLocalViews,
 }: FilterModalProps) {
   const [conditions, setConditions] = useState<Condition[]>(
     columnFilters?.map((filter, index) => ({
@@ -85,6 +93,8 @@ export default function FilterModal({
     ],
   );
 
+  const updateColumnVisibility = api.view.updateColumnFilters.useMutation();
+
   const handleColumnChange = (
     e: React.ChangeEvent<HTMLSelectElement>,
     rowId: number,
@@ -98,6 +108,23 @@ export default function FilterModal({
       }
       return condition;
     });
+
+    updateColumnVisibility.mutate({
+      viewId: selectedView,
+      columnFilters: newConditions
+    });
+
+    setLocalViews(
+      localViews.map((view) => {
+        if (view.id === selectedView) {
+          return {
+            ...view,
+            columnFilters: newConditions
+          }
+        }
+        return view;
+      })
+    )
 
     setConditions(newConditions);
     setColumnFilters(newConditions);

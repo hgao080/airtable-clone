@@ -1,5 +1,6 @@
 import { SortingState } from "@tanstack/react-table";
 import { GoQuestion } from "react-icons/go";
+import { set } from "zod";
 
 import { api } from "~/trpc/react";
 
@@ -9,6 +10,8 @@ interface sortModalProps {
   sorting: SortingState
   setSorting: (newSorting: any) => void;
   selectedView: string;
+  localViews: any[];
+  setLocalViews: (newViews: any[]) => void;
 }
 
 export default function SortModal({
@@ -17,6 +20,8 @@ export default function SortModal({
   sorting,
   setSorting,
   selectedView,
+  localViews,
+  setLocalViews,
 }: sortModalProps) {
 
   const updateSortingState = api.view.updateSortingState.useMutation();
@@ -41,6 +46,18 @@ export default function SortModal({
       viewId: selectedView,
       sortingState: newSorting
     })
+
+    setLocalViews(
+      localViews.map((view) => {
+        if (view.id === selectedView) {
+          return {
+            ...view,
+            sortingState: newSorting
+          }
+        }
+        return view;
+      })
+    )
 
     setSorting(newSorting);
   };

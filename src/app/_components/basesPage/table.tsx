@@ -15,8 +15,6 @@ import {
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
-import Filter from "./filter";
-import { FaOldRepublic } from "react-icons/fa6";
 
 interface TableProps {
   tableId: string;
@@ -25,6 +23,8 @@ interface TableProps {
   columnFilters: ColumnFiltersState;
   setColumnFilters: (newColumnFilters: any) => void;
   columnVisibility: Record<string, boolean>;
+  localTableColumns: any[];
+  setLocalTableColumns: (newColumns: any[]) => void;
 }
 
 declare module "@tanstack/react-table" {
@@ -39,8 +39,9 @@ export default function Table({
   searchQuery,
   sorting,
   columnFilters,
-  setColumnFilters,
   columnVisibility,
+  localTableColumns,
+  setLocalTableColumns,
 }: TableProps) {
   const { data: tableColumns, refetch: refetchColumns } =
     api.column.getColumns.useQuery({
@@ -50,10 +51,6 @@ export default function Table({
     tableId,
   });
 
-  // LOCAL STATE
-  const [localTableColumns, setLocalTableColumns] = useState(
-    tableColumns ?? [],
-  );
   const [localTableRows, setLocalTableRows] = useState(tableRows ?? []);
 
   const [showColumnModal, setShowColumnModal] = useState(false);
@@ -97,8 +94,8 @@ export default function Table({
         created: new Date(),
       };
 
-      setLocalTableColumns((prevColumns) => [
-        ...prevColumns,
+      setLocalTableColumns([
+        ...localTableColumns,
         placeholderColumn,
       ]);
       setLocalTableRows((prevRows) =>

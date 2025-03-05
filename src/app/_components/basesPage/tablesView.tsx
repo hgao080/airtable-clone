@@ -10,7 +10,6 @@ import Toolbar from "./toolbar";
 import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
-import { set } from "zod";
 
 export default function TablesView() {
   const router = useRouter();
@@ -19,18 +18,27 @@ export default function TablesView() {
 
   const [selectedTable, setSelectedTable] = useState<string>("");
 
-  const { data: tables, refetch: refetchTables } = api.table.getTablesByBase.useQuery({
-    baseId,
-  });
-  const { data: views, refetch: refetchViews } = api.view.getViewsByTable.useQuery({
-    tableId: selectedTable,
-  });
-  
+  const { data: tables, refetch: refetchTables } =
+    api.table.getTablesByBase.useQuery({
+      baseId,
+    });
+  const { data: columns, refetch: refetchColumns } =
+    api.column.getColumns.useQuery({
+      tableId: selectedTable,
+    });
+  const { data: views, refetch: refetchViews } =
+    api.view.getViewsByTable.useQuery({
+      tableId: selectedTable,
+    });
+
+  const [localViews, setLocalViews] = useState(views ?? []);
   const [selectedView, setSelectedView] = useState<string | undefined>("");
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
+
+  const [localColumns, setLocalColumns] = useState(columns ?? []);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -41,6 +49,13 @@ export default function TablesView() {
   const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
 
   useEffect(() => {
+    if (selectedTable && selectedTable !== "temp") {
+      void refetchViews();
+      void refetchColumns();
+    }
+  }, [selectedTable]);
+
+  useEffect(() => {
     if (tables) {
       setSelectedTable(tables[tables.length - 1]?.id ?? "");
       setLocalTables(tables);
@@ -48,19 +63,25 @@ export default function TablesView() {
   }, [tables]);
 
   useEffect(() => {
-    if (selectedTable && selectedTable !== "temp") {
-      void refetchViews();
+    if (columns) {
+      setLocalColumns(columns);
     }
-  }, [selectedTable])
+  }, [columns]);
 
   useEffect(() => {
     if (views) {
-      setSelectedView(views[0]?.id);
-      setColumnVisibility(views[0]?.columnVisibility as Record<string, boolean> ?? {});
-      setSorting(views[0]?.sortingState as unknown as SortingState ?? [])
-      setColumnFilters(views[0]?.columnFilters as unknown as ColumnFiltersState ?? [])
+      setLocalViews(views);
+      setSelectedView(views[0]?.id ?? "");
     }
-  }, [views])
+  }, [views]);
+
+  useEffect(() => {
+    if (selectedView) {
+      setColumnVisibility(localViews?.find((view) => view.id === selectedView)?.columnVisibility as unknown as Record<string, boolean> ?? {});
+      setSorting(localViews?.find((view) => view.id === selectedView)?.sortingState as unknown as SortingState ?? []);
+      setColumnFilters(localViews?.find((view) => view.id === selectedView)?.columnFilters as unknown as ColumnFiltersState ?? []);
+    }
+  }, [selectedView])
 
   if (!baseId) {
     router.back();
@@ -162,20 +183,30 @@ export default function TablesView() {
       <Toolbar
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
-        tableId={selectedTable}
         sorting={sorting}
         setSorting={setSorting}
         selectedView={selectedView}
+        localViews={localViews}
+        setLocalViews={setLocalViews}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         isViewsModalOpen={isViewsModalOpen}
         setIsViewsModalOpen={setIsViewsModalOpen}
+        localColumns={localColumns}
       />
 
       <div className="flex flex-auto">
-        {isViewsModalOpen && <ViewsModal views={views ?? []} selectedView={selectedView ?? ""} setSelectedView={setSelectedView}/>}
+        {isViewsModalOpen && (
+          <ViewsModal
+            tableId={selectedTable}
+            views={localViews}
+            setLocalViews={setLocalViews}
+            selectedView={selectedView ?? ""}
+            setSelectedView={setSelectedView}
+          />
+        )}
 
         {selectedTable && (
           <Table
@@ -185,6 +216,8 @@ export default function TablesView() {
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             columnVisibility={columnVisibility}
+            localTableColumns={localColumns}
+            setLocalTableColumns={setLocalColumns}
           />
         )}
       </div>

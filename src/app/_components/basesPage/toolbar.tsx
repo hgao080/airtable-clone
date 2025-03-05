@@ -12,7 +12,6 @@ import SearchModal from "./searchModal";
 import { useEffect, useRef, useState } from "react";
 import SortModal from "./sortModal";
 
-import { api } from "~/trpc/react";
 import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
 import FilterModal from "./filterModal";
@@ -20,9 +19,10 @@ import FilterModal from "./filterModal";
 interface ToolbarProps {
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
-  tableId: string | undefined;
   sorting: SortingState;
   setSorting: (newSorting: SortingState) => void;
+  localViews: any[];
+  setLocalViews: (newViews: any[]) => void;
   setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
   selectedView: string | undefined;
   columnVisibility: Record<string, boolean>;
@@ -30,12 +30,12 @@ interface ToolbarProps {
   setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
   isViewsModalOpen: boolean;
   setIsViewsModalOpen: (isOpen: boolean) => void;
+  localColumns: any[];
 }
 
 export default function Toolbar({
   searchQuery,
   onSearchChange,
-  tableId,
   sorting,
   setSorting,
   setColumnVisibility,
@@ -45,10 +45,10 @@ export default function Toolbar({
   isViewsModalOpen,
   setIsViewsModalOpen,
   selectedView,
+  localColumns,
+  localViews,
+  setLocalViews,
 }: ToolbarProps) {
-  const { data: table } = api.table.getTable.useQuery({ tableId });
-  const [tableColumns, setTableColumns] = useState(table?.columns ?? []);
-
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);
@@ -56,12 +56,6 @@ export default function Toolbar({
   const filterModalRef = useRef<HTMLDivElement>(null);
   const sortModalRef = useRef<HTMLDivElement>(null);
   const columnModalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (table) {
-      setTableColumns(table.columns);
-    }
-  }, [table]);
 
   useEffect(() => {
     if (isSortModalOpen || isVisibilityModalOpen || isFilterModalOpen) {
@@ -130,10 +124,12 @@ export default function Toolbar({
             {isVisibilityModalOpen && (
               <VisiblityModal
                 ref={columnModalRef}
-                columns={tableColumns}
+                columns={localColumns}
                 columnVisibility={columnVisibility}
                 setColumnVisibility={setColumnVisibility}
                 selectedView={selectedView ?? ""}
+                localViews={localViews}
+                setLocalViews={setLocalViews}
               />
             )}
           </div>
@@ -150,9 +146,12 @@ export default function Toolbar({
             </button>
             {isFilterModalOpen && <FilterModal
               ref={filterModalRef}
-              columns={tableColumns}
+              columns={localColumns}
               columnFilters={columnFilters}
               setColumnFilters={setColumnFilters}
+              localViews={localViews}
+              setLocalViews={setLocalViews}
+              selectedView={selectedView ?? ""}
             />}
           </div>
 
@@ -171,10 +170,12 @@ export default function Toolbar({
             {isSortModalOpen && (
               <SortModal
                 ref={sortModalRef}
-                columns={tableColumns}
+                columns={localColumns}
                 sorting={sorting}
                 setSorting={setSorting}
                 selectedView={selectedView ?? ""}
+                localViews={localViews}
+                setLocalViews={setLocalViews}
               />
             )}
           </div>
