@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 
 import {
@@ -13,18 +13,20 @@ import {
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
-import { Cell } from "@prisma/client";
+import { Cell, View } from "@prisma/client";
 
 interface TableProps {
   tableId: string;
+  selectedView: string;
   searchQuery: string;
   sorting: SortingState;
   columnFilters: ColumnFiltersState;
   setColumnFilters: (newColumnFilters: any) => void;
   columnVisibility: Record<string, boolean>;
+  setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
+  setLocalToolBarColumns: (newColumns: any[]) => void;
   localTableColumns: any[];
   setLocalTableColumns: (newColumns: any[]) => void;
-  refetchColumns: () => void;
   localTableRows: any[];
   setLocalTableRows: (newRows: any[]) => void;
   refetchRows: () => void;
@@ -39,13 +41,15 @@ declare module "@tanstack/react-table" {
 
 export default function Table({
   tableId,
+  selectedView,
   searchQuery,
   sorting,
   columnFilters,
   columnVisibility,
+  setColumnVisibility,
+  setLocalToolBarColumns,
   localTableColumns,
   setLocalTableColumns,
-  refetchColumns,
   localTableRows,
   setLocalTableRows,
   refetchRows,
@@ -66,6 +70,8 @@ export default function Table({
   } | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  const updateColumnVisibility = api.view.updateColumnVisibility.useMutation();
+
   const createColumn = api.column.addColumn.useMutation({
     onMutate: async (newColumn) => {
       const previousColumns = localTableColumns;
@@ -79,6 +85,16 @@ export default function Table({
         type: newColumn.type,
         created: new Date(),
       };
+
+      setColumnVisibility({
+        ...columnVisibility,
+        [tempId]: true,
+      })
+
+      setLocalToolBarColumns([
+        ...localTableColumns,
+        placeholderColumn,
+      ])
 
       setLocalTableColumns([
         ...localTableColumns,
@@ -110,10 +126,53 @@ export default function Table({
       }
     },
     onSuccess: (createdColumn, newColumn, context) => {
-      setIsCreatingColumn(false);
+      if (!createdColumn) {
+        throw new Error("Column not created");
+      }
 
-      void refetchRows();
-      void refetchColumns();
+      updateColumnVisibility.mutate({
+        viewId: selectedView,
+        columnVisibility: {
+          ...columnVisibility,
+          [createdColumn.id]: true,
+        }
+      });
+
+      setColumnVisibility({
+        ...Object.fromEntries(Object.entries(columnVisibility).filter(([key]) => key !== context?.tempId)),
+        [createdColumn.id]: true,
+      })
+
+      setLocalToolBarColumns([
+        ...localTableColumns.filter((col) => col.id !== context?.tempId),
+        createdColumn,
+      ])
+
+      setLocalTableColumns([
+        ...localTableColumns.filter((col) => col.id !== context?.tempId),
+        createdColumn,
+      ]);
+
+      setLocalTableRows([
+        ...localTableRows.map((row) => ({
+          ...row,
+          cells: [
+            ...row.cells.map((cell: Cell) => {
+              if (cell.columnId === context?.tempId) {
+                return {
+                  value: "",
+                  id: createdColumn.cells.find((c) => c.rowId === row.id)?.id,
+                  columnId: createdColumn.id,
+                  rowId: row.id,
+                };
+              }
+              return cell;
+            })
+          ]
+        }))
+      ])
+
+      setIsCreatingColumn(false);
     },
   });
 
@@ -167,7 +226,7 @@ export default function Table({
   });
 
   const updateCell = api.cell.updateCell.useMutation({
-    onMutate: async (updatedCell) => {
+    onMutate: (updatedCell) => {
       setLocalTableRows([
         ...localTableRows.map((row) => {
           return row.id === updatedCell.rowId
@@ -186,6 +245,9 @@ export default function Table({
     onError: () => {
       setLocalTableRows(localTableRows);
     },
+    onSuccess: () => {
+
+    }
   });
 
   const handleCreateColumn = () => {

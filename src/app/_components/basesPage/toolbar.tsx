@@ -15,11 +15,10 @@ import SortModal from "./sortModal";
 import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
 import FilterModal from "./filterModal";
-
-import { api } from "~/trpc/react";
+import { Column } from "@prisma/client";
 
 interface ToolbarProps {
-  tableId: string;
+  columns: Column[];
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
   sorting: SortingState;
@@ -38,7 +37,7 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({
-  tableId,
+  columns,
   searchQuery,
   onSearchChange,
   sorting,
@@ -55,10 +54,6 @@ export default function Toolbar({
   refetchColumns,
   refetchRows,
 }: ToolbarProps) {
-  const { data: columns } = api.column.getColumns.useQuery({
-    tableId: tableId ?? "",
-  });
-
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = useState(false);

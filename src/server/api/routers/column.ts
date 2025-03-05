@@ -34,6 +34,7 @@ export const columnRouter = createTRPCRouter({
 
         return prisma.column.findFirst({
           where: { id: newColumn.id },
+          include: { cells: true },
         });
       });
     }),

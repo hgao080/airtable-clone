@@ -36,6 +36,10 @@ export default function TablesView() {
     api.view.getViewsByTable.useQuery({
       tableId: selectedTable,
     });
+  const { data: toolBarColumns, refetch: refetchToolBarColumns } =
+    api.column.getColumns.useQuery({
+      tableId: selectedTable,
+    });
 
   const [localViews, setLocalViews] = useState(views ?? []);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +47,7 @@ export default function TablesView() {
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
 
+  const [localToolBarColumns, setLocalToolBarColumns] = useState(toolBarColumns ?? []);
   const [localColumns, setLocalColumns] = useState(columns ?? []);
   const [localRows, setLocalRows] = useState(rows ?? []);
 
@@ -67,6 +72,12 @@ export default function TablesView() {
       setLocalTables(tables);
     }
   }, [tables]);
+
+  useEffect(() => {
+    if (toolBarColumns) {
+      setLocalToolBarColumns(toolBarColumns);
+    }
+  }, [toolBarColumns]);
 
   useEffect(() => {
     if (columns) {
@@ -168,6 +179,8 @@ export default function TablesView() {
                 setLocalColumns([]);
                 setLocalRows([]);
                 setSelectedTable(table.id);
+                void refetchColumns();
+                void refetchRows();
                 void refetchViews();
               }}
             >
@@ -205,7 +218,7 @@ export default function TablesView() {
       </div>
 
       <Toolbar
-        tableId={selectedTable ?? ""}
+        columns={localToolBarColumns ?? []}
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
         sorting={sorting}
@@ -237,14 +250,16 @@ export default function TablesView() {
         {selectedTable && (
           <Table
             tableId={selectedTable}
+            selectedView={selectedView}
             searchQuery={searchQuery}
             sorting={sorting}
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
+            setLocalToolBarColumns={setLocalToolBarColumns}
             localTableColumns={localColumns}
             setLocalTableColumns={setLocalColumns}
-            refetchColumns={refetchColumns}
             localTableRows={localRows}
             setLocalTableRows={setLocalRows}
             refetchRows={refetchRows}
