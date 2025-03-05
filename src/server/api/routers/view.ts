@@ -24,4 +24,17 @@ export const viewRouter = createTRPCRouter({
         },
       });
     }),
+
+    updateSortingState: protectedProcedure
+      .input(z.object({ viewId: z.string(), sortingState: z.array(z.object({ id: z.string(), desc: z.boolean() })) }))
+      .mutation(async ({ ctx, input }) => {
+        return await ctx.db.view.update({
+          where: {
+            id: input.viewId,
+          },
+          data: {
+            sortingState: input.sortingState,
+          },
+        });
+      }),
 })

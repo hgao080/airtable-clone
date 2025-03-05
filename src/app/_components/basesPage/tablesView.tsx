@@ -17,13 +17,13 @@ export default function TablesView() {
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
 
-  const [selectedTable, setSelectedTable] = useState<string | undefined>("");
+  const [selectedTable, setSelectedTable] = useState<string>("");
 
   const { data: tables, refetch: refetchTables } = api.table.getTablesByBase.useQuery({
     baseId,
   });
   const { data: views, refetch: refetchViews } = api.view.getViewsByTable.useQuery({
-    tableId: selectedTable ?? "",
+    tableId: selectedTable,
   });
   
   const [selectedView, setSelectedView] = useState<string | undefined>("");
@@ -42,23 +42,25 @@ export default function TablesView() {
 
   useEffect(() => {
     if (tables) {
-      setSelectedTable(tables[tables.length - 1]?.id);
+      setSelectedTable(tables[tables.length - 1]?.id ?? "");
       setLocalTables(tables);
     }
   }, [tables]);
-
-  useEffect(() => {
-    if (views) {
-      setSelectedView(views[0]?.id);
-      setColumnVisibility(views[0]?.columnVisibility as Record<string, boolean> ?? {});
-    }
-  }, [views])
 
   useEffect(() => {
     if (selectedTable && selectedTable !== "temp") {
       void refetchViews();
     }
   }, [selectedTable])
+
+  useEffect(() => {
+    if (views) {
+      setSelectedView(views[0]?.id);
+      setColumnVisibility(views[0]?.columnVisibility as Record<string, boolean> ?? {});
+      setSorting(views[0]?.sortingState as unknown as SortingState ?? [])
+      setColumnFilters(views[0]?.columnFilters as unknown as ColumnFiltersState ?? [])
+    }
+  }, [views])
 
   if (!baseId) {
     router.back();
@@ -121,8 +123,6 @@ export default function TablesView() {
               value={table.id}
               className="flex items-center"
               onClick={() => {
-                setColumnFilters([]);
-                setSorting([]);
                 setSelectedTable(table.id);
               }}
             >
@@ -163,6 +163,7 @@ export default function TablesView() {
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
         tableId={selectedTable}
+        sorting={sorting}
         setSorting={setSorting}
         selectedView={selectedView}
         columnVisibility={columnVisibility}

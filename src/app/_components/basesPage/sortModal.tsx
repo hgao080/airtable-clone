@@ -1,32 +1,48 @@
+import { SortingState } from "@tanstack/react-table";
 import { GoQuestion } from "react-icons/go";
+
+import { api } from "~/trpc/react";
 
 interface sortModalProps {
   ref: React.RefObject<HTMLDivElement>;
   columns: any[];
+  sorting: SortingState
   setSorting: (newSorting: any) => void;
+  selectedView: string;
 }
 
 export default function SortModal({
   ref,
   columns,
+  sorting,
   setSorting,
+  selectedView,
 }: sortModalProps) {
+
+  const updateSortingState = api.view.updateSortingState.useMutation();
+
   const handleToggleSort = (columnId: string) => {
-    setSorting((prev: any) => {
-      const existingSort = prev.find((sort: any) => sort.id === columnId);
+    const existingSort = sorting.find((sort: any) => sort.id === columnId);
 
-      if (!existingSort) {
-        return [...prev, { id: columnId, desc: false }];
-      }
-
+    let newSorting: SortingState
+    if (!existingSort) {
+      newSorting = [...sorting, { id: columnId, desc: false }];
+    } else {
       if (existingSort.desc) {
-        return prev.filter((sort: any) => sort.id !== columnId);
+        newSorting = sorting.filter((sort: any) => sort.id !== columnId);
+      } else {
+        newSorting = sorting.map((sort: any) => 
+          sort.id === columnId ? { ...sort, desc: !sort.desc } : sort
+        )
       }
+    }
 
-      return prev.map((sort: any) =>
-        sort.id === columnId ? { ...sort, desc: !sort.desc } : sort
-      );
-    });
+    updateSortingState.mutate({
+      viewId: selectedView,
+      sortingState: newSorting
+    })
+
+    setSorting(newSorting);
   };
 
   return (

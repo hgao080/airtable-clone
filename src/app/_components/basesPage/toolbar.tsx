@@ -21,6 +21,7 @@ interface ToolbarProps {
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
   tableId: string | undefined;
+  sorting: SortingState;
   setSorting: (newSorting: SortingState) => void;
   setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
   selectedView: string | undefined;
@@ -35,6 +36,7 @@ export default function Toolbar({
   searchQuery,
   onSearchChange,
   tableId,
+  sorting,
   setSorting,
   setColumnVisibility,
   columnVisibility,
@@ -170,7 +172,9 @@ export default function Toolbar({
               <SortModal
                 ref={sortModalRef}
                 columns={tableColumns}
+                sorting={sorting}
                 setSorting={setSorting}
+                selectedView={selectedView ?? ""}
               />
             )}
           </div>
