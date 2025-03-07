@@ -1,3 +1,4 @@
+import { Column } from "@prisma/client";
 import { useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiToggleRightFill } from "react-icons/pi";
@@ -13,6 +14,8 @@ interface visibilityModalProps {
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
   refetchColumns: () => void;
+  localColumns: Column[];
+  setLocalColumns: (newColumns: any[]) => void;
 }
 
 export default function VisiblityModal({
@@ -24,17 +27,22 @@ export default function VisiblityModal({
   localViews,
   setLocalViews,
   refetchColumns,
+  localColumns,
+  setLocalColumns,
 } : visibilityModalProps) {
   const [searchField, setSearchField] = useState<string>("");
   const filteredColumns = columns.filter((col) => col.name.toLowerCase().includes(searchField.toLowerCase()));
 
   const updateColumnVisibility = api.view.updateColumnVisibility.useMutation({
+    onMutate: (data) => {
+
+    },
     onSuccess: () => {
       void refetchColumns();
     }
   });
 
-  const handleToggleVisibility = (columnId: string) => {
+  const handleToggleVisibility = (columnId: string, columnName: string) => {
     const newColumnVisibility = {
       ...columnVisibility,
       [columnId]: !columnVisibility[columnId]
@@ -44,6 +52,18 @@ export default function VisiblityModal({
       viewId: selectedView,
       columnVisibility: newColumnVisibility
     })
+
+    if (localColumns.some((col) => col.id === columnId)) {
+      setLocalColumns(localColumns.filter((col) => col.id !== columnId));
+    } else {
+      setLocalColumns([
+        ...localColumns,
+        {
+          id: columnId,
+          name: columnName
+        }
+      ])
+    }
 
     setLocalViews(
       localViews.map((view) => {
@@ -72,7 +92,7 @@ export default function VisiblityModal({
         {filteredColumns.map((col) => (
           <button
             key={col.id}
-            onClick={() => handleToggleVisibility(col.id)}
+            onClick={() => handleToggleVisibility(col.id, col.name)}
             className="flex items-center gap-2 w-full px-2 py-1 text-start text-[0.8rem] hover:bg-gray-100 rounded-md"
           >
             <PiToggleRightFill size={16} fill={`${columnVisibility[col.id] ? 'green' : 'gray'}`} className={`${columnVisibility[col.id] ? "" : "scale-x-[-1]"}`} />

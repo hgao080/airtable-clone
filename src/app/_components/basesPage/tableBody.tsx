@@ -50,7 +50,7 @@ export default function TableBody({
       })}
       <tr
         style={{ transform: `translateY(${rowVirtualizer.getTotalSize()}px)` }}
-        className=""
+        className="h-8"
       >
         {columns.map((column, index) => {
           if (index == 0 || index == 1) {

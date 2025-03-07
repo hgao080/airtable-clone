@@ -10,14 +10,54 @@ import Toolbar from "./toolbar";
 import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
+import { Column, Row } from "@prisma/client";
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+
+const fetchSize = 50;
 
 export default function TablesView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
+  const queryClient = useQueryClient();
 
+  const trpc = api.useUtils();
+
+  const [localColumns, setLocalColumns] = useState<Column[]>([]);
+  const [localRows, setLocalRows] = useState<Row[]>([]);
+  
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [selectedView, setSelectedView] = useState<string>("");
+
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<
+    Record<string, boolean>
+  >({});
+
+  const {
+    data: dataInfinite,
+    fetchNextPage,
+    isFetching,
+    isLoading,
+    refetch: refetchRows,
+  } = useInfiniteQuery({
+    queryKey: ['rows', selectedTable],
+    queryFn: async ({ pageParam = 0 }) => {
+      const start = (pageParam as number) * fetchSize;
+      return await trpc.row.getRowsFilteredSorted.fetch({
+        tableId: selectedTable,
+        viewId: selectedView,
+        start,
+        size: fetchSize,
+      });
+    },
+    enabled: !!selectedTable && !!selectedView,
+    initialPageParam: 0,
+    getNextPageParam: (_lastGroup, groups) => groups.length,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+  });
 
   const { data: tables, refetch: refetchTables } =
     api.table.getTablesByBase.useQuery({
@@ -28,10 +68,6 @@ export default function TablesView() {
       tableId: selectedTable,
       viewId: selectedView,
     });
-  const { data: rows, refetch: refetchRows } = api.row.getRowsFilteredSorted.useQuery({
-    tableId: selectedTable,
-    viewId: selectedView,
-  });
   const { data: views, refetch: refetchViews } =
     api.view.getViewsByTable.useQuery({
       tableId: selectedTable,
@@ -42,29 +78,15 @@ export default function TablesView() {
     });
 
   const [localViews, setLocalViews] = useState(views ?? []);
+  const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
 
-  const [localToolBarColumns, setLocalToolBarColumns] = useState(toolBarColumns ?? []);
-  const [localColumns, setLocalColumns] = useState(columns ?? []);
-  const [localRows, setLocalRows] = useState(rows ?? []);
-
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<
-    Record<string, boolean>
-  >({});
-
-  const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (selectedTable && selectedTable !== "temp") {
-      void refetchViews();
-      void refetchColumns();
-    }
-  }, [selectedTable]);
+  const [localToolBarColumns, setLocalToolBarColumns] = useState(
+    toolBarColumns ?? [],
+  );
 
   useEffect(() => {
     if (tables) {
@@ -72,6 +94,12 @@ export default function TablesView() {
       setLocalTables(tables);
     }
   }, [tables]);
+
+  useEffect(() => {
+    if (selectedTable && selectedView) {
+      void refetchRows();
+    }
+  }, [selectedTable, selectedView, refetchRows]);
 
   useEffect(() => {
     if (toolBarColumns) {
@@ -86,10 +114,12 @@ export default function TablesView() {
   }, [columns]);
 
   useEffect(() => {
-    if (rows) {
-      setLocalRows(rows);
+    if (dataInfinite?.pages[0]) {
+      setLocalRows(
+        dataInfinite.pages.flatMap((page) => ("data" in page ? page.data : [])),
+      );
     }
-  }, [rows])
+  }, [dataInfinite]);
 
   useEffect(() => {
     if (views) {
@@ -145,7 +175,11 @@ export default function TablesView() {
     },
     onSuccess: (createdTable) => {
       setIsCreatingTable(false);
-      void refetchTables();
+      setSelectedTable(createdTable.id);
+      setLocalTables([
+        ...localTables.filter((table) => table.id !== "temp"),
+        createdTable,
+      ]);
     },
   });
 
@@ -167,7 +201,7 @@ export default function TablesView() {
   }
 
   return (
-    <div className="flex flex-auto flex-col overflow-auto">
+    <div className="flex flex-auto flex-col">
       <div className="flex justify-between gap-2 bg-rose-600">
         <div className="flex flex-auto items-center rounded-tr-md bg-rose-700 pl-3">
           {localTables?.map((table) => (
@@ -178,9 +212,9 @@ export default function TablesView() {
               onClick={() => {
                 setLocalColumns([]);
                 setLocalRows([]);
+                setLocalViews([]);
                 setSelectedTable(table.id);
                 void refetchColumns();
-                void refetchRows();
                 void refetchViews();
               }}
             >
@@ -218,6 +252,7 @@ export default function TablesView() {
       </div>
 
       <Toolbar
+        selectedTable={selectedTable}
         columns={localToolBarColumns ?? []}
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
@@ -226,6 +261,7 @@ export default function TablesView() {
         selectedView={selectedView}
         localViews={localViews}
         setLocalViews={setLocalViews}
+        refetchViews={refetchViews}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnFilters={columnFilters}
@@ -233,6 +269,10 @@ export default function TablesView() {
         isViewsModalOpen={isViewsModalOpen}
         setIsViewsModalOpen={setIsViewsModalOpen}
         refetchColumns={refetchColumns}
+        localColumns={localColumns}
+        setLocalColumns={setLocalColumns}
+        localRows={localRows}
+        setLocalRows={setLocalRows}
         refetchRows={refetchRows}
       />
 
@@ -244,6 +284,9 @@ export default function TablesView() {
             setLocalViews={setLocalViews}
             selectedView={selectedView ?? ""}
             setSelectedView={setSelectedView}
+            setSorting={setSorting}
+            setColumnFilters={setColumnFilters}
+            setColumnVisibility={setColumnVisibility}
           />
         )}
 
@@ -260,9 +303,12 @@ export default function TablesView() {
             setLocalToolBarColumns={setLocalToolBarColumns}
             localTableColumns={localColumns}
             setLocalTableColumns={setLocalColumns}
-            localTableRows={localRows}
+            localTableRows={localRows ?? []}
             setLocalTableRows={setLocalRows}
-            refetchRows={refetchRows}
+            fetchNextPage={fetchNextPage}
+            isFetching={isFetching}
+            isLoading={isLoading}
+            dataInfinite={dataInfinite}
           />
         )}
       </div>

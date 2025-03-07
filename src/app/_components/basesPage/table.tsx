@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 
 import {
@@ -10,10 +10,25 @@ import {
   ColumnFiltersState,
   RowData,
   FilterFn,
+  getSortedRowModel,
+  getFilteredRowModel,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
-import { Cell, View } from "@prisma/client";
+import { Cell } from "@prisma/client";
+import { useQueryClient } from "@tanstack/react-query";
+
+declare module "@tanstack/react-table" {
+  interface TableMeta<TData extends RowData> {
+    updateData: (rowIndex: number, columnId: string, value: any) => void;
+  }
+
+  interface ColumnMeta<TData extends RowData, TValue> {
+    filterVariant?: "text" | "range";
+  }
+}
+
+const defaultColumn: Partial<ColumnDef<any>> = {};
 
 interface TableProps {
   tableId: string;
@@ -29,14 +44,10 @@ interface TableProps {
   setLocalTableColumns: (newColumns: any[]) => void;
   localTableRows: any[];
   setLocalTableRows: (newRows: any[]) => void;
-  refetchRows: () => void;
-}
-
-declare module "@tanstack/react-table" {
-  //allows us to define custom properties for our columns
-  interface ColumnMeta<TData extends RowData, TValue> {
-    filterVariant?: "text" | "range";
-  }
+  fetchNextPage: () => void;
+  isFetching: boolean;
+  isLoading: boolean;
+  dataInfinite: any;
 }
 
 export default function Table({
@@ -52,8 +63,12 @@ export default function Table({
   setLocalTableColumns,
   localTableRows,
   setLocalTableRows,
-  refetchRows,
+  fetchNextPage,
+  isFetching,
+  dataInfinite,
 }: TableProps) {
+  const trpc = api.useUtils();
+  const queryClient = useQueryClient();
 
   const [showColumnModal, setShowColumnModal] = useState(false);
 
@@ -63,17 +78,11 @@ export default function Table({
   const [columnName, setColumnName] = useState("");
   const [columnType, setColumnType] = useState<"TEXT" | "NUMBER">("TEXT");
 
-  // CELL SELECTION
-  const [editingCell, setEditingCell] = useState<{
-    rowId: string;
-    columnId: string;
-  } | null>(null);
-  const [editValue, setEditValue] = useState("");
-
   const updateColumnVisibility = api.view.updateColumnVisibility.useMutation();
 
   const createColumn = api.column.addColumn.useMutation({
     onMutate: async (newColumn) => {
+      setIsCreatingColumn(true);
       const previousColumns = localTableColumns;
 
       const tempId = `temp-col-${Date.now()}`;
@@ -89,17 +98,11 @@ export default function Table({
       setColumnVisibility({
         ...columnVisibility,
         [tempId]: true,
-      })
+      });
 
-      setLocalToolBarColumns([
-        ...localTableColumns,
-        placeholderColumn,
-      ])
+      setLocalToolBarColumns([...localTableColumns, placeholderColumn]);
 
-      setLocalTableColumns([
-        ...localTableColumns,
-        placeholderColumn,
-      ]);
+      setLocalTableColumns([...localTableColumns, placeholderColumn]);
 
       setLocalTableRows([
         ...localTableRows.map((row) => ({
@@ -112,9 +115,9 @@ export default function Table({
               columnId: tempId,
               rowId: row.id,
             },
-          ]
-        }))
-      ])
+          ],
+        })),
+      ]);
 
       return { previousColumns, tempId };
     },
@@ -126,6 +129,7 @@ export default function Table({
       }
     },
     onSuccess: (createdColumn, newColumn, context) => {
+      setIsCreatingColumn(false);
       if (!createdColumn) {
         throw new Error("Column not created");
       }
@@ -135,18 +139,22 @@ export default function Table({
         columnVisibility: {
           ...columnVisibility,
           [createdColumn.id]: true,
-        }
+        },
       });
 
       setColumnVisibility({
-        ...Object.fromEntries(Object.entries(columnVisibility).filter(([key]) => key !== context?.tempId)),
+        ...Object.fromEntries(
+          Object.entries(columnVisibility).filter(
+            ([key]) => key !== context?.tempId,
+          ),
+        ),
         [createdColumn.id]: true,
-      })
+      });
 
       setLocalToolBarColumns([
         ...localTableColumns.filter((col) => col.id !== context?.tempId),
         createdColumn,
-      ])
+      ]);
 
       setLocalTableColumns([
         ...localTableColumns.filter((col) => col.id !== context?.tempId),
@@ -167,17 +175,18 @@ export default function Table({
                 };
               }
               return cell;
-            })
-          ]
-        }))
-      ])
+            }),
+          ],
+        })),
+      ]);
 
       setIsCreatingColumn(false);
     },
   });
 
   const createRow = api.row.addRow.useMutation({
-    onMutate: async () => {
+    onMutate: () => {
+      setIsCreatingRow(true);
       const previousRows = localTableRows;
 
       const tempId = `temp-row-${Date.now()}`;
@@ -193,10 +202,7 @@ export default function Table({
         })),
       };
 
-      setLocalTableRows([
-        ...localTableRows,
-        placeholderRow,
-      ]);
+      setLocalTableRows([...localTableRows, placeholderRow]);
 
       return { previousRows, tempId };
     },
@@ -209,7 +215,11 @@ export default function Table({
     },
     onSuccess: (createdRow, data, context) => {
       setIsCreatingRow(false);
-      void refetchRows();
+
+      setLocalTableRows([
+        ...localTableRows.filter((row) => row.id !== context?.tempId),
+        createdRow,
+      ]);
     },
   });
 
@@ -217,7 +227,6 @@ export default function Table({
     onSuccess: (data) => {
       setIsCreatingRow(false);
       console.log(data?.message);
-      void refetchRows();
     },
     onError: (err) => {
       setIsCreatingRow(false);
@@ -227,6 +236,8 @@ export default function Table({
 
   const updateCell = api.cell.updateCell.useMutation({
     onMutate: (updatedCell) => {
+      const previousRows = localTableRows;
+
       setLocalTableRows([
         ...localTableRows.map((row) => {
           return row.id === updatedCell.rowId
@@ -240,19 +251,47 @@ export default function Table({
               }
             : row;
         }),
-      ])
-    },
-    onError: () => {
-      setLocalTableRows(localTableRows);
-    },
-    onSuccess: () => {
+      ]);
 
-    }
+      queryClient.setQueryData(
+        ["rows", tableId],
+        (oldData: any) => {
+          if (!oldData) {
+            return;
+          }
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              data: page.data.map((row: any) =>
+                row.id === updatedCell.rowId
+                  ? {
+                      ...row,
+                      cells: row.cells.map((cell: Cell) =>
+                        cell.rowId === updatedCell.rowId && cell.columnId === updatedCell.columnId ? updatedCell : cell,
+                      ),
+                    }
+                  : row,
+              ),
+            })),
+          };
+        },
+      );
+
+      return { previousRows };
+    },
+    onError: (updatedCell, input, context) => {
+      if (context?.previousRows) {
+        setLocalTableRows(context.previousRows);
+      }
+    },
+    onSuccess: (updatedCell) => {
+      
+    },
   });
 
   const handleCreateColumn = () => {
-    setIsCreatingColumn(true);
-
     if (!columnName) {
       createColumn.mutate({
         tableId,
@@ -271,7 +310,6 @@ export default function Table({
   };
 
   const handleCreateRow = () => {
-    setIsCreatingRow(true);
     createRow.mutate({
       tableId,
     });
@@ -294,32 +332,55 @@ export default function Table({
     setColumnType("TEXT");
   };
 
-  const handleDoubleClick = (
-    rowId: string,
-    columnId: string,
-    value: string,
-  ) => {
-    if (rowId.startsWith("temp-") || columnId.startsWith("temp-")) {
-      return;
-    }
+  const textFilter: FilterFn<any> = (row, columnId, filterValue) => {
+    const cellValue = row.getValue(columnId)?.toString().toLowerCase() ?? "";
 
-    setEditingCell({ rowId, columnId });
-    setEditValue(value);
+    switch (filterValue.operator) {
+      case "contains":
+        if (filterValue.value === "") {
+          return true;
+        }
+
+        return cellValue.includes(filterValue.value.toLowerCase());
+      case "not_contains":
+        if (filterValue.value === "") {
+          return true;
+        }
+        return !cellValue.includes(filterValue.value.toLowerCase());
+      case "equals":
+        if (filterValue.value === "") {
+          return true;
+        }
+
+        return cellValue === filterValue.value.toLowerCase();
+      case "is_empty":
+        return cellValue.trim() === "";
+      case "is_not_empty":
+        return cellValue.trim() !== "";
+      default:
+        return true;
+    }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditValue(e.target.value);
-  };
+  const numberFilter: FilterFn<any> = (row, columnId, filterValue) => {
+    const cellValue = Number(row.getValue(columnId));
 
-  const handleBlur = () => {
-    if (editingCell) {
-      updateCell.mutate({
-        rowId: editingCell.rowId,
-        columnId: editingCell.columnId,
-        value: editValue,
-      });
+    if (isNaN(cellValue)) {
+      return false;
     }
-    setEditingCell(null);
+
+    if (filterValue.value === "") {
+      return true;
+    }
+
+    switch (filterValue.operator) {
+      case "greater_than":
+        return cellValue > Number(filterValue.value);
+      case "less_than":
+        return cellValue < Number(filterValue.value);
+      default:
+        return true;
+    }
   };
 
   const rowNumColumn: ColumnDef<any> = {
@@ -334,45 +395,6 @@ export default function Table({
       );
     },
   };
-
-  const textFilter: FilterFn<any> = (row, columnId, filterValue) => {
-    const cellValue = row.getValue(columnId)?.toString().toLowerCase() ?? "";
-
-    switch (filterValue.operator) {
-      case "contains":
-        return cellValue.includes(filterValue.value.toLowerCase())
-      case "not_contains":
-        if (filterValue.value === "") {
-          return true;
-        }
-        return !cellValue.includes(filterValue.value.toLowerCase())
-      case "equals":
-        return cellValue === filterValue.value.toLowerCase();
-      case "is_empty":
-        return cellValue.trim() === "";
-      case "is_not_empty":
-        return cellValue.trim() !== "";
-      default:
-        return true;
-    }
-  }
-
-  const numberFilter: FilterFn<any> = (row, columnId, filterValue) => {
-    const cellValue = Number(row.getValue(columnId));
-
-    if (isNaN(cellValue)) {
-      return false;
-    }
-
-    switch (filterValue.operator) {
-      case "greater_than":
-        return cellValue > Number(filterValue.value);
-      case "less_than":
-        return cellValue < Number(filterValue.value);
-      default:
-        return true;
-    }
-  }
 
   const columns = useMemo<ColumnDef<any>[]>(
     () => [
@@ -392,40 +414,41 @@ export default function Table({
             </div>
           );
         },
-        cell: ({ row }: { row: any }) => {
+        cell: ({ getValue, row }: { getValue: () => any; row: any }) => {
           const rowId = row.original.id;
           const columnId = col.id;
-          const cellValue = row.original[columnId] || "";
+          const originalValue = row.original[columnId];
+
+          const [value, setValue] = useState(originalValue === null || originalValue === undefined || originalValue === 0 ? "" : originalValue);
 
           const isMatch =
             searchQuery.length > 0 &&
-            cellValue
-              .toString()
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase());
+            value.toString().toLowerCase().includes(searchQuery.toLowerCase());
 
-          return editingCell?.rowId === rowId &&
-            editingCell?.columnId === columnId ? (
+          const onBlur = () => {
+            updateCell.mutate({
+              rowId,
+              columnId,
+              value: value.toString(),
+            });
+          };
+
+          useEffect(() => {
+            setValue(originalValue === null || originalValue === undefined || originalValue === 0 ? "" : originalValue);
+          }, [originalValue]);
+
+          return (
             <input
               type={col.type === "NUMBER" ? "number" : "text"}
-              className="h-8 w-full p-1 text-[0.75rem] outline-blue-500"
-              value={editValue}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              autoFocus
-            />
-          ) : (
-            <div
-              tabIndex={0}
-              className={`flex h-full w-full flex-auto items-center pl-1 text-[0.75rem] outline-none focus:ring-2 focus:ring-blue-500 ${
-                isMatch ? "bg-yellow-200" : ""
-              }`}
-              onDoubleClick={() =>
-                handleDoubleClick(rowId, columnId, cellValue)
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onBlur={onBlur}
+              disabled={
+                (columnId.includes("temp") || rowId.includes("temp")) &&
+                (isCreatingColumn || isCreatingRow)
               }
-            >
-              {cellValue}
-            </div>
+              className={`z-50 w-0 flex-auto pl-1 text-[0.75rem] focus:outline-blue-500 ${isMatch ? "m-[-2px] bg-yellow-400" : ""}`}
+            />
           );
         },
         sortingFn: "alphanumeric" as const,
@@ -438,24 +461,53 @@ export default function Table({
       })),
     ],
 
-    [localTableColumns, editingCell, editValue, searchQuery],
+    [localTableColumns, searchQuery, isCreatingColumn, isCreatingRow],
   );
 
   const data = useMemo(
     () =>
       localTableRows.map((row) => {
+        if (!row || !row.cells) {
+          return {};
+        }
+
         const rowData: Record<string, any> = {};
 
         row.cells.forEach((cell: Cell) => {
           const columnDef = localTableColumns.find(
             (col) => col.id === cell.columnId,
           );
-          rowData[cell.columnId] = columnDef?.type === "NUMBER" ? Number(cell.value) : cell.value;
+          rowData[cell.columnId] =
+            columnDef?.type === "NUMBER" ? Number(cell.value) : cell.value;
         });
         return { id: row.id, ...rowData };
       }),
     [localTableRows],
   );
+
+  const totalDBRowCount = dataInfinite?.pages?.[0]?.meta?.totalRowCount ?? 0;
+  const totalFetched = localTableRows.length;
+
+  const fetchMoreOnBottomReached = useCallback(
+    (tableContainerRef?: HTMLDivElement | null) => {
+      if (tableContainerRef) {
+        const { scrollHeight, scrollTop, clientHeight } = tableContainerRef;
+
+        if (
+          scrollHeight - scrollTop - clientHeight < 500 &&
+          !isFetching &&
+          totalFetched < totalDBRowCount
+        ) {
+          fetchNextPage();
+        }
+      }
+    },
+    [fetchNextPage, isFetching, totalFetched, totalDBRowCount],
+  );
+
+  useEffect(() => {
+    fetchMoreOnBottomReached(tableContainerRef.current);
+  }, [fetchMoreOnBottomReached]);
 
   const table = useReactTable({
     data: data,
@@ -467,12 +519,14 @@ export default function Table({
     },
     isMultiSortEvent: (e) => true,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     columnResizeMode: "onChange",
   });
 
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
 
-  if (!localTableColumns || !localTableRows || tableId === "temp") {
+  if (tableId === "temp") {
     return (
       <div className="flex h-full flex-auto items-center justify-center">
         <div className="text-[0.75rem] text-gray-500">Loading...</div>
@@ -483,7 +537,8 @@ export default function Table({
   return (
     <div
       ref={tableContainerRef}
-      className="relative h-full w-full overflow-auto border bg-gray-50"
+      onScroll={(e) => fetchMoreOnBottomReached(e.currentTarget)}
+      className="relative max-h-[800px] w-full overflow-auto border bg-gray-50"
     >
       <table className="grid">
         <thead className="sticky top-0 z-10 grid">
@@ -514,7 +569,6 @@ export default function Table({
                       }[header.column.getIsSorted() as string] ?? null}
                     </div>
 
-                    
                     <div
                       onMouseDown={header.getResizeHandler()}
                       onTouchStart={header.getResizeHandler()}

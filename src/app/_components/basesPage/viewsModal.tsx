@@ -9,6 +9,9 @@ interface ViewsModalProps {
   selectedView: string;
   setSelectedView: (viewId: string) => void;
   tableId: string;
+  setSorting: (newSorting: any) => void;
+  setColumnFilters: (newColumnFilters: any) => void;
+  setColumnVisibility: (newColumnVisibility: any) => void;
 }
 
 export default function ViewsModal({
@@ -17,6 +20,8 @@ export default function ViewsModal({
   setSelectedView,
   tableId,
   setLocalViews,
+  setSorting,
+  setColumnFilters,
 }: ViewsModalProps) {
 
   const createView = api.view.createView.useMutation({
@@ -53,7 +58,9 @@ export default function ViewsModal({
         <div className="mt-2 flex flex-col flex-auto gap-1">
           {views?.map((view) => (
             <button
-              onClick={() => setSelectedView(view.id)}
+              onClick={() => {
+                setSelectedView(view.id)
+              }}
               key={view.id}
               className={`flex flex-auto rounded-md px-2 py-1 text-[0.8rem] hover:bg-blue-100 ${selectedView === view.id ? "bg-blue-100" : ""}`}
             >

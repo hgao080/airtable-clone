@@ -86,14 +86,26 @@ export const rowRouter = createTRPCRouter({
     }),
 
   getRowsFilteredSorted: protectedProcedure
-    .input(z.object({ tableId: z.string(), viewId: z.string() }))
+    .input(
+      z.object({
+        tableId: z.string(),
+        viewId: z.string(),
+        start: z.number(),
+        size: z.number(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const view = await ctx.db.view.findUnique({
         where: { id: input.viewId },
       });
 
       if (!view) {
-        return [];
+        return {
+          data: [],
+          meta: {
+            totalRowCount: 0,
+          },
+        };
       }
 
       const rows = await ctx.db.row.findMany({
@@ -121,22 +133,30 @@ export const rowRouter = createTRPCRouter({
               value: { operator: string; value: string };
             };
 
-            if (!filterValue.value.value) {
-              return true;
-            }
-
             switch (filterValue.value.operator) {
               case "contains":
+                if (!filterValue.value.value) {
+                  return true;
+                }
+
                 if (!cell.value.includes(filterValue.value.value)) {
                   return false;
                 }
                 break;
               case "not_contains":
+                if (!filterValue.value.value) {
+                  return true;
+                }
+
                 if (cell.value.includes(filterValue.value.value)) {
                   return false;
                 }
                 break;
               case "equals":
+                if (!filterValue.value.value) {
+                  return true;
+                }
+
                 if (cell.value !== filterValue.value.value) {
                   return false;
                 }
@@ -174,15 +194,23 @@ export const rowRouter = createTRPCRouter({
         filteredSortedRows = filteredSortedRows.sort((a, b) => {
           for (const sort of view.sortingState) {
             const sortValue = sort as { id: string; desc: boolean };
-            const cellA = a.cells.find((cell: Cell) => cell.columnId === sortValue.id);
-            const cellB = b.cells.find((cell: Cell) => cell.columnId === sortValue.id);
+            const cellA = a.cells.find(
+              (cell: Cell) => cell.columnId === sortValue.id,
+            );
+            const cellB = b.cells.find(
+              (cell: Cell) => cell.columnId === sortValue.id,
+            );
 
             if (!cellA || !cellB) {
               continue;
             }
 
-            const valueA = isNaN(Number(cellA.value)) ? cellA.value : Number(cellA.value);
-            const valueB = isNaN(Number(cellB.value)) ? cellB.value : Number(cellB.value);
+            const valueA = isNaN(Number(cellA.value))
+              ? cellA.value
+              : Number(cellA.value);
+            const valueB = isNaN(Number(cellB.value))
+              ? cellB.value
+              : Number(cellB.value);
 
             if (valueA < valueB) {
               return sortValue.desc ? 1 : -1;
@@ -195,6 +223,11 @@ export const rowRouter = createTRPCRouter({
         });
       }
 
-      return filteredSortedRows;
+      return {
+        data: filteredSortedRows.slice(input.start, input.start + input.size),
+        meta: {
+          totalRowCount: filteredSortedRows.length,
+        },
+      };
     }),
 });

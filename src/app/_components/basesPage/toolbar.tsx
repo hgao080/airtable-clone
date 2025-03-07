@@ -15,9 +15,11 @@ import SortModal from "./sortModal";
 import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
 import FilterModal from "./filterModal";
-import { Column } from "@prisma/client";
+import { Column, Row } from "@prisma/client";
+import { InfiniteData, QueryObserverResult } from "@tanstack/react-query";
 
 interface ToolbarProps {
+  selectedTable: string;
   columns: Column[];
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
@@ -25,6 +27,7 @@ interface ToolbarProps {
   setSorting: (newSorting: SortingState) => void;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
+  refetchViews: () => void;
   setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
   selectedView: string | undefined;
   columnVisibility: Record<string, boolean>;
@@ -33,10 +36,15 @@ interface ToolbarProps {
   isViewsModalOpen: boolean;
   setIsViewsModalOpen: (isOpen: boolean) => void;
   refetchColumns: () => void;
-  refetchRows: () => void;
+  localColumns: Column[];
+  setLocalColumns: (newColumns: Column[]) => void;
+  localRows: Row[];
+  setLocalRows: (newRows: Row[]) => void;
+  refetchRows: () => void
 }
 
 export default function Toolbar({
+  selectedTable,
   columns,
   searchQuery,
   onSearchChange,
@@ -51,7 +59,12 @@ export default function Toolbar({
   selectedView,
   localViews,
   setLocalViews,
+  refetchViews,
   refetchColumns,
+  localColumns,
+  setLocalColumns,
+  localRows,
+  setLocalRows,
   refetchRows,
 }: ToolbarProps) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -136,6 +149,8 @@ export default function Toolbar({
                 localViews={localViews}
                 setLocalViews={setLocalViews}
                 refetchColumns={refetchColumns}
+                localColumns={localColumns}
+                setLocalColumns={setLocalColumns}
               />
             )}
           </div>
@@ -151,6 +166,7 @@ export default function Toolbar({
               <p className="text-[0.75rem] font-medium">Filter</p>
             </button>
             {isFilterModalOpen && <FilterModal
+              selectedTable={selectedTable}
               ref={filterModalRef}
               columns={columns ?? []}
               columnFilters={columnFilters}
@@ -158,6 +174,8 @@ export default function Toolbar({
               localViews={localViews}
               setLocalViews={setLocalViews}
               selectedView={selectedView ?? ""}
+              localRows={localRows}
+              setLocalRows={setLocalRows}
               refetchRows={refetchRows}
             />}
           </div>
@@ -176,6 +194,7 @@ export default function Toolbar({
             </button>
             {isSortModalOpen && (
               <SortModal
+              selectedTable={selectedTable}
                 ref={sortModalRef}
                 columns={columns ?? []}
                 sorting={sorting}

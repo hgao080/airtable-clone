@@ -1,9 +1,11 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { SortingState } from "@tanstack/react-table";
 import { GoQuestion } from "react-icons/go";
 
 import { api } from "~/trpc/react";
 
 interface sortModalProps {
+  selectedTable: string;
   ref: React.RefObject<HTMLDivElement>;
   columns: any[];
   sorting: SortingState
@@ -15,6 +17,7 @@ interface sortModalProps {
 }
 
 export default function SortModal({
+  selectedTable,
   ref,
   columns,
   sorting,
@@ -24,9 +27,26 @@ export default function SortModal({
   setLocalViews,
   refetchRows,
 }: sortModalProps) {
+  const queryClient = useQueryClient();
 
   const updateSortingState = api.view.updateSortingState.useMutation({
+    onMutate: (data) => {
+      setLocalViews(
+        localViews.map((view) => {
+          if (view.id === selectedView) {
+            return {
+              ...view,
+              sortingState: data.sortingState,
+            };
+          }
+          return view;
+        }),
+      );
+    },
     onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["rows", selectedTable],
+      });
       void refetchRows();
     }
   });

@@ -23,6 +23,17 @@ export const cellRouter = createTRPCRouter({
         throw new Error("Cell not found")
       }
 
-      return result;
+      const updatedCell = await ctx.db.cell.findFirst({
+        where: {
+          rowId: input.rowId,
+          columnId: input.columnId,
+        }
+      })
+
+      if (!updatedCell) {
+        throw new Error("Cell not found after update");
+      }
+
+      return updatedCell;
     })
 })

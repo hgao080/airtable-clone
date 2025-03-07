@@ -1,5 +1,11 @@
-import { ColumnFilter } from "@tanstack/react-table";
-import { useState } from "react";
+import { Row } from "@prisma/client";
+import {
+  InfiniteData,
+  QueryObserverResult,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { ColumnFilter, ColumnVisibility } from "@tanstack/react-table";
+import { useEffect, useRef, useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiTrash } from "react-icons/pi";
 import { RiDraggable } from "react-icons/ri";
@@ -7,6 +13,7 @@ import { set } from "zod";
 import { api } from "~/trpc/react";
 
 interface FilterModalProps {
+  selectedTable: string;
   ref: React.RefObject<HTMLDivElement>;
   columns: any[];
   columnFilters: ColumnFilter[];
@@ -14,6 +21,8 @@ interface FilterModalProps {
   selectedView: string;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
+  localRows: Row[];
+  setLocalRows: (newRows: Row[]) => void;
   refetchRows: () => void;
 }
 
@@ -66,12 +75,13 @@ const numberOperators = [
     name: ">",
   },
   {
-    id: "smaller_than",
+    id: "less_than",
     name: "<",
   },
 ];
 
 export default function FilterModal({
+  selectedTable,
   ref,
   columns,
   setColumnFilters,
@@ -81,6 +91,9 @@ export default function FilterModal({
   setLocalViews,
   refetchRows,
 }: FilterModalProps) {
+  const queryClient = useQueryClient();
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [conditions, setConditions] = useState<Condition[]>(
     columnFilters?.map((filter, index) => ({
       ...filter,
@@ -96,10 +109,50 @@ export default function FilterModal({
   );
 
   const updateColumnFilters = api.view.updateColumnFilters.useMutation({
+    onMutate: (data) => {
+      setLocalViews(
+        localViews.map((view) => {
+          if (view.id === selectedView) {
+            return {
+              ...view,
+              columnFilters: data.columnFilters,
+            };
+          }
+          return view;
+        }),
+      );
+    },
     onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["rows", selectedTable],
+      });
       void refetchRows();
-    }
+    },
   });
+
+  const debouncedUpdateFilters = (newConditions: Condition[]) => {
+    
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Set a new timer to apply filters after 1000ms of inactivity
+    debounceTimerRef.current = setTimeout(() => {
+      updateColumnFilters.mutate({
+        viewId: selectedView,
+        columnFilters: newConditions,
+      });
+    }, 1000); // 1 second debounce
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleColumnChange = (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -115,27 +168,10 @@ export default function FilterModal({
       return condition;
     });
 
-    console.log(newConditions)
-
-    updateColumnFilters.mutate({
-      viewId: selectedView,
-      columnFilters: newConditions
-    });
-
-    setLocalViews(
-      localViews.map((view) => {
-        if (view.id === selectedView) {
-          return {
-            ...view,
-            columnFilters: newConditions
-          }
-        }
-        return view;
-      })
-    )
-
     setConditions(newConditions);
     setColumnFilters(newConditions);
+
+    debouncedUpdateFilters(newConditions);
   };
 
   const handleOperatorChange = (
@@ -155,13 +191,10 @@ export default function FilterModal({
       return condition;
     });
 
-    updateColumnFilters.mutate({
-      viewId: selectedView,
-      columnFilters: newConditions
-    });
-
     setConditions(newConditions);
     setColumnFilters(newConditions);
+
+    debouncedUpdateFilters(newConditions);
   };
 
   const handleFilterChange = (
@@ -181,13 +214,10 @@ export default function FilterModal({
       return condition;
     });
 
-    updateColumnFilters.mutate({
-      viewId: selectedView,
-      columnFilters: newConditions
-    });
-
     setConditions(newConditions);
     setColumnFilters(newConditions);
+
+    debouncedUpdateFilters(newConditions);
   };
 
   const handleAddCondition = () => {
@@ -208,14 +238,24 @@ export default function FilterModal({
       (condition) => condition.rowId !== rowId,
     );
 
-    updateColumnFilters.mutate({
-      viewId: selectedView,
-      columnFilters: newConditions
+    const updatedConditions = newConditions.map((condition) => {
+      if (condition.rowId > rowId) {
+        return {
+          ...condition,
+          rowId: condition.rowId - 1,
+        };
+      }
+      return condition;
     });
 
-    setConditions(newConditions);
-    setColumnFilters(newConditions);
-  }
+    updateColumnFilters.mutate({
+      viewId: selectedView,
+      columnFilters: updatedConditions,
+    });
+
+    setConditions(updatedConditions);
+    setColumnFilters(updatedConditions);
+  };
 
   return (
     <div
@@ -275,16 +315,22 @@ export default function FilterModal({
                       </option>
                     ))}
                   </>
-                ) : <>
-                {numberOperators.map((operator) => (
-                  <option key={operator.id} value={operator.id}>
-                    {operator.name}
-                  </option>
-                ))}
-              </>}
+                ) : (
+                  <>
+                    {numberOperators.map((operator) => (
+                      <option key={operator.id} value={operator.id}>
+                        {operator.name}
+                      </option>
+                    ))}
+                  </>
+                )}
               </select>
               <input
-                type={columns.find((col) => col.id === condition.id).type === "TEXT" ? "text" : "number"}
+                type={
+                  columns.find((col) => col.id === condition.id).type === "TEXT"
+                    ? "text"
+                    : "number"
+                }
                 className="w-0 flex-auto border border-gray-200 pl-2 focus:outline-blue-500"
                 placeholder="Enter a value"
                 value={condition.value.value}
@@ -292,10 +338,13 @@ export default function FilterModal({
                   handleFilterChange(e, condition.rowId);
                 }}
               />
-              <button onClick={() => handleDeleteCondition(condition.rowId)} className="border flex p-2">
+              <button
+                onClick={() => handleDeleteCondition(condition.rowId)}
+                className="flex border p-2"
+              >
                 <PiTrash size={16} className="" />
               </button>
-              <button className="border flex p-2">
+              <button className="flex border p-2">
                 <RiDraggable size={16} className="" />
               </button>
             </div>
