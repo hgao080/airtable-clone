@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   type ColumnDef,
@@ -8,27 +9,10 @@ import {
   getCoreRowModel,
   useReactTable,
   ColumnFiltersState,
-  RowData,
-  FilterFn,
-  getSortedRowModel,
-  getFilteredRowModel,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
 import { Cell } from "@prisma/client";
-import { useQueryClient } from "@tanstack/react-query";
-
-declare module "@tanstack/react-table" {
-  interface TableMeta<TData extends RowData> {
-    updateData: (rowIndex: number, columnId: string, value: any) => void;
-  }
-
-  interface ColumnMeta<TData extends RowData, TValue> {
-    filterVariant?: "text" | "range";
-  }
-}
-
-const defaultColumn: Partial<ColumnDef<any>> = {};
 
 interface TableProps {
   tableId: string;
@@ -48,6 +32,7 @@ interface TableProps {
   isFetching: boolean;
   isLoading: boolean;
   dataInfinite: any;
+  refetchRows: () => void;
 }
 
 export default function Table({
@@ -65,9 +50,10 @@ export default function Table({
   setLocalTableRows,
   fetchNextPage,
   isFetching,
+  isLoading,
   dataInfinite,
+  refetchRows,
 }: TableProps) {
-  const trpc = api.useUtils();
   const queryClient = useQueryClient();
 
   const [showColumnModal, setShowColumnModal] = useState(false);
@@ -224,52 +210,45 @@ export default function Table({
   });
 
   const addBulkRows = api.row.addBulkRows.useMutation({
-    onSuccess: (data) => {
-      setIsCreatingRow(false);
-      console.log(data?.message);
-    },
     onError: (err) => {
       setIsCreatingRow(false);
       console.error(err);
     },
+    onSuccess: (data) => {
+      setIsCreatingRow(false);
+      console.log(data?.message);
+      void refetchRows();
+    },
   });
 
   const updateCell = api.cell.updateCell.useMutation({
-    onMutate: (updatedCell) => {
-      const previousRows = localTableRows;
+    onMutate: async (updatedCell) => {
+      await queryClient.cancelQueries({
+        queryKey: ["rows", tableId],
+      });
 
-      setLocalTableRows([
-        ...localTableRows.map((row) => {
-          return row.id === updatedCell.rowId
-            ? {
-                ...row,
-                cells: row.cells.map((cell: Cell) =>
-                  cell.columnId === updatedCell.columnId
-                    ? { ...cell, value: updatedCell.value }
-                    : cell,
-                ),
-              }
-            : row;
-        }),
-      ]);
+      const previousRows = queryClient.getQueryData<{
+        pages: Array<{ data: any[] }>;
+      }>(["rows", tableId, selectedView, columnFilters, sorting]);
 
       queryClient.setQueryData(
-        ["rows", tableId],
-        (oldData: any) => {
-          if (!oldData) {
-            return;
-          }
-
+        ["rows", tableId, selectedView, columnFilters, sorting],
+        (old: any) => {
           return {
-            ...oldData,
-            pages: oldData.pages.map((page: any) => ({
+            ...old,
+            pages: old.pages.map((page: any) => ({
               ...page,
               data: page.data.map((row: any) =>
                 row.id === updatedCell.rowId
                   ? {
                       ...row,
-                      cells: row.cells.map((cell: Cell) =>
-                        cell.rowId === updatedCell.rowId && cell.columnId === updatedCell.columnId ? updatedCell : cell,
+                      cells: row.cells.map((cell: any) =>
+                        cell.columnId === updatedCell.columnId
+                          ? {
+                              ...cell,
+                              value: updatedCell.value,
+                            }
+                          : cell,
                       ),
                     }
                   : row,
@@ -279,16 +258,42 @@ export default function Table({
         },
       );
 
+      setLocalTableRows([
+        ...localTableRows.map((row) => {
+          if (row.id === updatedCell.rowId) {
+            return {
+              ...row,
+              cells: row.cells.map((cell: any) => {
+                if (cell.columnId === updatedCell.columnId) {
+                  return {
+                    ...cell,
+                    value: updatedCell.value,
+                  };
+                }
+                return cell;
+              }),
+            };
+          }
+          return row;
+        }),
+      ]);
+
       return { previousRows };
     },
     onError: (updatedCell, input, context) => {
+      queryClient.setQueryData(
+        ["rows", tableId, selectedView, columnFilters, sorting],
+        context?.previousRows,
+      );
       if (context?.previousRows) {
-        setLocalTableRows(context.previousRows);
+        setLocalTableRows(
+          context.previousRows?.pages?.flatMap((page) => page.data || []) || [],
+        );
       }
     },
-    onSuccess: (updatedCell) => {
+    onSuccess: () => {
       
-    },
+    }
   });
 
   const handleCreateColumn = () => {
@@ -332,57 +337,6 @@ export default function Table({
     setColumnType("TEXT");
   };
 
-  const textFilter: FilterFn<any> = (row, columnId, filterValue) => {
-    const cellValue = row.getValue(columnId)?.toString().toLowerCase() ?? "";
-
-    switch (filterValue.operator) {
-      case "contains":
-        if (filterValue.value === "") {
-          return true;
-        }
-
-        return cellValue.includes(filterValue.value.toLowerCase());
-      case "not_contains":
-        if (filterValue.value === "") {
-          return true;
-        }
-        return !cellValue.includes(filterValue.value.toLowerCase());
-      case "equals":
-        if (filterValue.value === "") {
-          return true;
-        }
-
-        return cellValue === filterValue.value.toLowerCase();
-      case "is_empty":
-        return cellValue.trim() === "";
-      case "is_not_empty":
-        return cellValue.trim() !== "";
-      default:
-        return true;
-    }
-  };
-
-  const numberFilter: FilterFn<any> = (row, columnId, filterValue) => {
-    const cellValue = Number(row.getValue(columnId));
-
-    if (isNaN(cellValue)) {
-      return false;
-    }
-
-    if (filterValue.value === "") {
-      return true;
-    }
-
-    switch (filterValue.operator) {
-      case "greater_than":
-        return cellValue > Number(filterValue.value);
-      case "less_than":
-        return cellValue < Number(filterValue.value);
-      default:
-        return true;
-    }
-  };
-
   const rowNumColumn: ColumnDef<any> = {
     id: "rowNum",
     header: "#",
@@ -414,12 +368,18 @@ export default function Table({
             </div>
           );
         },
-        cell: ({ row }: { getValue: () => any; row: any }) => {
+        cell: ({ getValue, row }: { getValue: () => any; row: any }) => {
           const rowId = row.original.id;
           const columnId = col.id;
-          const originalValue = row.original[columnId];
+          const originalValue = getValue();
 
-          const [value, setValue] = useState(originalValue === null || originalValue === undefined || originalValue === 0 ? "" : originalValue);
+          const [value, setValue] = useState(
+            originalValue === null ||
+              originalValue === undefined ||
+              originalValue === 0
+              ? ""
+              : originalValue,
+          );
 
           const isMatch =
             searchQuery.length > 0 &&
@@ -434,7 +394,13 @@ export default function Table({
           };
 
           useEffect(() => {
-            setValue(originalValue === null || originalValue === undefined || originalValue === 0 ? "" : originalValue);
+            setValue(
+              originalValue === null ||
+                originalValue === undefined ||
+                originalValue === 0
+                ? ""
+                : originalValue,
+            );
           }, [originalValue]);
 
           return (
@@ -457,11 +423,10 @@ export default function Table({
           filterVariant:
             col.type === "NUMBER" ? ("range" as const) : ("text" as const),
         },
-        filterFn: col.type === "NUMBER" ? numberFilter : textFilter,
       })),
     ],
 
-    [localTableColumns, searchQuery, isCreatingColumn, isCreatingRow],
+    [localTableColumns, searchQuery, isCreatingColumn, isCreatingRow, selectedView],
   );
 
   const data = useMemo(
@@ -482,7 +447,7 @@ export default function Table({
         });
         return { id: row.id, ...rowData };
       }),
-    [localTableRows],
+    [localTableRows, selectedView],
   );
 
   const totalDBRowCount = dataInfinite?.pages?.[0]?.meta?.totalRowCount ?? 0;
@@ -526,7 +491,7 @@ export default function Table({
 
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
 
-  if (tableId === "temp") {
+  if (tableId === "temp" || isLoading) {
     return (
       <div className="flex h-full flex-auto items-center justify-center">
         <div className="text-[0.75rem] text-gray-500">Loading...</div>

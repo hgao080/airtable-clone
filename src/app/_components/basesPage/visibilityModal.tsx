@@ -51,18 +51,6 @@ export default function VisiblityModal({
       columnVisibility: newColumnVisibility,
     });
 
-    // if (localColumns.some((col) => col.id === columnId)) {
-    //   setLocalColumns(localColumns.filter((col) => col.id !== columnId));
-    // } else {
-    //   setLocalColumns([
-    //     ...localColumns,
-    //     {
-    //       id: columnId,
-    //       name: columnName,
-    //     },
-    //   ]);
-    // }
-
     setLocalViews(
       localViews.map((view) => {
         if (view.id === selectedView) {
@@ -96,7 +84,7 @@ export default function VisiblityModal({
       <div className="h-[2px] w-full bg-gray-200"></div>
 
       <div className="flex flex-col items-start">
-        {filteredColumns.map((col) => (
+        {filteredColumns.map((col, index) => (
           <button
             key={col.id}
             onClick={() => handleToggleVisibility(col.id, col.name)}

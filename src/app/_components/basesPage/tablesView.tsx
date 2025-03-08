@@ -11,7 +11,8 @@ import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
 import { Column, Row } from "@prisma/client";
-import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
+import { getQueryClient } from "~/app/_providers/getQueryClient";
 
 const fetchSize = 50;
 
@@ -19,12 +20,13 @@ export default function TablesView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
+  const queryClient = getQueryClient();
 
   const trpc = api.useUtils();
 
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [localRows, setLocalRows] = useState<Row[]>([]);
-  
+
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [selectedView, setSelectedView] = useState<string>("");
 
@@ -41,7 +43,7 @@ export default function TablesView() {
     isLoading,
     refetch: refetchRows,
   } = useInfiniteQuery({
-    queryKey: ['rows', selectedTable, selectedView, JSON.stringify(columnFilters), JSON.stringify(sorting)],
+    queryKey: ["rows", selectedTable, selectedView, columnFilters, sorting],
     queryFn: async ({ pageParam = 0 }) => {
       const start = (pageParam as number) * fetchSize;
       return await trpc.row.getRowsFilteredSorted.fetch({
@@ -60,10 +62,9 @@ export default function TablesView() {
     placeholderData: keepPreviousData,
   });
 
-  const { data: tables } =
-    api.table.getTablesByBase.useQuery({
-      baseId,
-    });
+  const { data: tables } = api.table.getTablesByBase.useQuery({
+    baseId,
+  });
   const { data: columns, refetch: refetchColumns } =
     api.column.getVisibleColumns.useQuery({
       tableId: selectedTable,
@@ -80,7 +81,6 @@ export default function TablesView() {
 
   const [localViews, setLocalViews] = useState(views ?? []);
   const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
-  
 
   const [localTables, setLocalTables] = useState(tables ?? []);
   const [localToolBarColumns, setLocalToolBarColumns] = useState(
@@ -96,6 +96,19 @@ export default function TablesView() {
       setLocalTables(tables);
     }
   }, [tables]);
+
+  useEffect(() => {
+    if (selectedTable && selectedView) {
+      void refetchColumns();
+      void refetchToolBarColumns();
+    }
+  }, [selectedTable, selectedView, sorting, columnFilters]);
+
+  useEffect(() => {
+    if (selectedTable) {
+      void refetchViews();
+    }
+  }, [selectedTable]);
 
   useEffect(() => {
     if (toolBarColumns) {
@@ -204,13 +217,11 @@ export default function TablesView() {
               value={table.id}
               className="flex items-center"
               onClick={() => {
+                queryClient.removeQueries({ queryKey: ["rows"] });
                 setLocalColumns([]);
                 setLocalRows([]);
                 setLocalViews([]);
                 setSelectedTable(table.id);
-                void refetchColumns();
-                void refetchViews();
-                void refetchRows();
               }}
             >
               <div
@@ -304,6 +315,7 @@ export default function TablesView() {
             isFetching={isFetching}
             isLoading={isLoading}
             dataInfinite={rowData}
+            refetchRows={refetchRows}
           />
         )}
       </div>
