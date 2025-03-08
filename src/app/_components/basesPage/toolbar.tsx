@@ -20,7 +20,7 @@ import { InfiniteData, QueryObserverResult } from "@tanstack/react-query";
 
 interface ToolbarProps {
   selectedTable: string;
-  columns: Column[];
+  allColumns: Column[];
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
   sorting: SortingState;
@@ -45,7 +45,7 @@ interface ToolbarProps {
 
 export default function Toolbar({
   selectedTable,
-  columns,
+  allColumns,
   searchQuery,
   onSearchChange,
   sorting,
@@ -142,7 +142,7 @@ export default function Toolbar({
             {isVisibilityModalOpen && (
               <VisiblityModal
                 ref={columnModalRef}
-                columns={columns ?? []}
+                columns={allColumns ?? []}
                 columnVisibility={columnVisibility}
                 setColumnVisibility={setColumnVisibility}
                 selectedView={selectedView ?? ""}
@@ -168,7 +168,7 @@ export default function Toolbar({
             {isFilterModalOpen && <FilterModal
               selectedTable={selectedTable}
               ref={filterModalRef}
-              columns={columns ?? []}
+              allColumns={allColumns ?? []}
               columnFilters={columnFilters}
               setColumnFilters={setColumnFilters}
               localViews={localViews}
@@ -196,7 +196,7 @@ export default function Toolbar({
               <SortModal
               selectedTable={selectedTable}
                 ref={sortModalRef}
-                columns={columns ?? []}
+                columns={allColumns ?? []}
                 sorting={sorting}
                 setSorting={setSorting}
                 selectedView={selectedView ?? ""}

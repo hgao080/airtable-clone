@@ -414,7 +414,7 @@ export default function Table({
             </div>
           );
         },
-        cell: ({ getValue, row }: { getValue: () => any; row: any }) => {
+        cell: ({ row }: { getValue: () => any; row: any }) => {
           const rowId = row.original.id;
           const columnId = col.id;
           const originalValue = row.original[columnId];
@@ -519,8 +519,8 @@ export default function Table({
     },
     isMultiSortEvent: (e) => true,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    manualFiltering: true,
+    manualSorting: true,
     columnResizeMode: "onChange",
   });
 

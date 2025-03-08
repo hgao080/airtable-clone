@@ -1,21 +1,18 @@
 import { Row } from "@prisma/client";
 import {
-  InfiniteData,
-  QueryObserverResult,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ColumnFilter, ColumnVisibility } from "@tanstack/react-table";
+import { ColumnFilter } from "@tanstack/react-table";
 import { useEffect, useRef, useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiTrash } from "react-icons/pi";
 import { RiDraggable } from "react-icons/ri";
-import { set } from "zod";
 import { api } from "~/trpc/react";
 
 interface FilterModalProps {
   selectedTable: string;
   ref: React.RefObject<HTMLDivElement>;
-  columns: any[];
+  allColumns: any[];
   columnFilters: ColumnFilter[];
   setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
   selectedView: string;
@@ -32,7 +29,7 @@ interface ColumnFilterValue {
 }
 
 interface Condition {
-  rowId: number;
+  conditionIndex: number;
   id: string;
   value: ColumnFilterValue;
 }
@@ -83,7 +80,7 @@ const numberOperators = [
 export default function FilterModal({
   selectedTable,
   ref,
-  columns,
+  allColumns,
   setColumnFilters,
   columnFilters,
   selectedView,
@@ -97,14 +94,14 @@ export default function FilterModal({
   const [conditions, setConditions] = useState<Condition[]>(
     columnFilters?.map((filter, index) => ({
       ...filter,
-      rowId: index,
+      conditionIndex: index,
       id: filter.id,
       value: {
         operator: (filter.value as ColumnFilterValue).operator,
         value: (filter.value as ColumnFilterValue).value,
       },
     })) ?? [
-      { rowId: 0, id: columns[0].id, value: { operator: "", value: "" } },
+      { conditionIndex: 0, id: allColumns[0].id, value: { operator: "", value: "" } },
     ],
   );
 
@@ -122,28 +119,22 @@ export default function FilterModal({
         }),
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["rows", selectedTable],
-      });
+    onSuccess: (updatedView) => {
       void refetchRows();
     },
   });
 
   const debouncedUpdateFilters = (newConditions: Condition[]) => {
-    
-    // Clear any existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
     
-    // Set a new timer to apply filters after 1000ms of inactivity
     debounceTimerRef.current = setTimeout(() => {
       updateColumnFilters.mutate({
         viewId: selectedView,
         columnFilters: newConditions,
       });
-    }, 1000); // 1 second debounce
+    }, 500); // 1 second debounce
   };
 
   useEffect(() => {
@@ -156,10 +147,10 @@ export default function FilterModal({
 
   const handleColumnChange = (
     e: React.ChangeEvent<HTMLSelectElement>,
-    rowId: number,
+    conditionIndex: number,
   ) => {
     const newConditions = conditions.map((condition) => {
-      if (condition.rowId === rowId) {
+      if (condition.conditionIndex === conditionIndex) {
         return {
           ...condition,
           id: e.target.value,
@@ -176,10 +167,10 @@ export default function FilterModal({
 
   const handleOperatorChange = (
     e: React.ChangeEvent<HTMLSelectElement>,
-    rowId: number,
+    conditionIndex: number,
   ) => {
     const newConditions = conditions.map((condition) => {
-      if (condition.rowId === rowId) {
+      if (condition.conditionIndex === conditionIndex) {
         return {
           ...condition,
           value: {
@@ -199,10 +190,10 @@ export default function FilterModal({
 
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    rowId: number,
+    conditionIndex: number,
   ) => {
     const newConditions = conditions.map((condition) => {
-      if (condition.rowId === rowId) {
+      if (condition.conditionIndex === conditionIndex) {
         return {
           ...condition,
           value: {
@@ -222,27 +213,34 @@ export default function FilterModal({
 
   const handleAddCondition = () => {
     const newCondition = {
-      rowId: conditions.length,
-      id: columns[0].id,
+      conditionIndex: conditions.length,
+      id: allColumns[0].id,
       value: {
         operator: "",
         value: "",
       },
     };
 
+    const newConditions = [...conditions, newCondition];
+
+    updateColumnFilters.mutate({
+      viewId: selectedView,
+      columnFilters: newConditions,
+    });
+
     setConditions([...conditions, newCondition]);
   };
 
-  const handleDeleteCondition = (rowId: number) => {
+  const handleDeleteCondition = (conditionIndex: number) => {
     const newConditions = conditions.filter(
-      (condition) => condition.rowId !== rowId,
+      (condition) => condition.conditionIndex !== conditionIndex,
     );
 
     const updatedConditions = newConditions.map((condition) => {
-      if (condition.rowId > rowId) {
+      if (condition.conditionIndex > conditionIndex) {
         return {
           ...condition,
-          rowId: condition.rowId - 1,
+          conditionIndex: condition.conditionIndex - 1,
         };
       }
       return condition;
@@ -276,23 +274,23 @@ export default function FilterModal({
       <div className="flex flex-col gap-1 px-2">
         {conditions.map((condition) => (
           <div
-            key={condition.rowId}
+            key={condition.conditionIndex}
             className="flex w-full items-center gap-2 text-[0.8rem]"
           >
             <p
-              className={`flex min-w-12 items-center justify-center rounded-sm py-2 text-[0.75rem] ${condition.rowId != 0 ? "border" : ""}`}
+              className={`flex min-w-12 items-center justify-center rounded-sm py-2 text-[0.75rem] ${condition.conditionIndex != 0 ? "border" : ""}`}
             >
-              {condition.rowId == 0 ? "Where" : "and"}
+              {condition.conditionIndex == 0 ? "Where" : "and"}
             </p>
             <div className="flex flex-auto text-[0.8rem]">
               <select
                 className="w-0 flex-auto truncate rounded-l-sm border border-gray-200 py-2 pl-1"
-                value={condition.id}
+                defaultValue={condition.id}
                 onChange={(e) => {
-                  handleColumnChange(e, condition.rowId);
+                  handleColumnChange(e, condition.conditionIndex);
                 }}
               >
-                {columns.map((col) => (
+                {allColumns.map((col) => (
                   <option key={col.id} value={col.id}>
                     {col.name}
                   </option>
@@ -303,10 +301,10 @@ export default function FilterModal({
                 className="w-0 flex-auto truncate border border-gray-200 py-2 pl-1"
                 value={condition.value.operator}
                 onChange={(e) => {
-                  handleOperatorChange(e, condition.rowId);
+                  handleOperatorChange(e, condition.conditionIndex);
                 }}
               >
-                {columns.find((col) => col.id === condition.id).type ===
+                {allColumns.find((col) => col.id === condition.id).type ===
                 "TEXT" ? (
                   <>
                     {operators.map((operator) => (
@@ -327,7 +325,7 @@ export default function FilterModal({
               </select>
               <input
                 type={
-                  columns.find((col) => col.id === condition.id).type === "TEXT"
+                  allColumns.find((col) => col.id === condition.id).type === "TEXT"
                     ? "text"
                     : "number"
                 }
@@ -335,11 +333,11 @@ export default function FilterModal({
                 placeholder="Enter a value"
                 value={condition.value.value}
                 onChange={(e) => {
-                  handleFilterChange(e, condition.rowId);
+                  handleFilterChange(e, condition.conditionIndex);
                 }}
               />
               <button
-                onClick={() => handleDeleteCondition(condition.rowId)}
+                onClick={() => handleDeleteCondition(condition.conditionIndex)}
                 className="flex border p-2"
               >
                 <PiTrash size={16} className="" />

@@ -1,4 +1,4 @@
-import { Cell } from "@prisma/client";
+import { Cell, Row } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { z } from "zod";
 
@@ -92,33 +92,25 @@ export const rowRouter = createTRPCRouter({
         viewId: z.string(),
         start: z.number(),
         size: z.number(),
+        columnFilters: z.array(z.any()).optional(),
+        sorting: z.array(z.any()).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const view = await ctx.db.view.findUnique({
-        where: { id: input.viewId },
-      });
-
-      if (!view) {
-        return {
-          data: [],
-          meta: {
-            totalRowCount: 0,
-          },
-        };
-      }
 
       const rows = await ctx.db.row.findMany({
         where: { tableId: input.tableId },
         include: { cells: true },
       });
 
+      let filters = input.columnFilters;
+
       let filteredSortedRows: any[] = rows;
-      if (view.columnFilters.length > 0) {
+      if (filters && filters.length > 0) {
         filteredSortedRows = rows.filter((row) => {
-          for (const filter of view.columnFilters) {
+          for (const filter of filters) {
             if (!filter) {
-              return false;
+              return true;
             }
 
             const cell = row.cells.find(
@@ -162,10 +154,7 @@ export const rowRouter = createTRPCRouter({
                 }
                 break;
               case "is_empty":
-                if (cell.value !== "") {
-                  return false;
-                }
-                break;
+                return cell.value == ""
               case "is_not_empty":
                 if (cell.value === "") {
                   return false;
@@ -190,9 +179,11 @@ export const rowRouter = createTRPCRouter({
         });
       }
 
-      if (view.sortingState.length > 0) {
+      let sorting = input.sorting;
+
+      if (sorting && sorting.length > 0) {
         filteredSortedRows = filteredSortedRows.sort((a, b) => {
-          for (const sort of view.sortingState) {
+          for (const sort of sorting) {
             const sortValue = sort as { id: string; desc: boolean };
             const cellA = a.cells.find(
               (cell: Cell) => cell.columnId === sortValue.id,

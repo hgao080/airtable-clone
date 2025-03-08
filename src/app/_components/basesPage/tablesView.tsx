@@ -19,7 +19,6 @@ export default function TablesView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
-  const queryClient = useQueryClient();
 
   const trpc = api.useUtils();
 
@@ -36,13 +35,13 @@ export default function TablesView() {
   >({});
 
   const {
-    data: dataInfinite,
+    data: rowData,
     fetchNextPage,
     isFetching,
     isLoading,
     refetch: refetchRows,
   } = useInfiniteQuery({
-    queryKey: ['rows', selectedTable],
+    queryKey: ['rows', selectedTable, selectedView, JSON.stringify(columnFilters), JSON.stringify(sorting)],
     queryFn: async ({ pageParam = 0 }) => {
       const start = (pageParam as number) * fetchSize;
       return await trpc.row.getRowsFilteredSorted.fetch({
@@ -50,6 +49,8 @@ export default function TablesView() {
         viewId: selectedView,
         start,
         size: fetchSize,
+        columnFilters: columnFilters,
+        sorting: sorting,
       });
     },
     enabled: !!selectedTable && !!selectedView,
@@ -59,7 +60,7 @@ export default function TablesView() {
     placeholderData: keepPreviousData,
   });
 
-  const { data: tables, refetch: refetchTables } =
+  const { data: tables } =
     api.table.getTablesByBase.useQuery({
       baseId,
     });
@@ -79,14 +80,15 @@ export default function TablesView() {
 
   const [localViews, setLocalViews] = useState(views ?? []);
   const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  
 
   const [localTables, setLocalTables] = useState(tables ?? []);
-  const [isCreatingTable, setIsCreatingTable] = useState(false);
-
   const [localToolBarColumns, setLocalToolBarColumns] = useState(
     toolBarColumns ?? [],
   );
+
+  const [isCreatingTable, setIsCreatingTable] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (tables) {
@@ -94,12 +96,6 @@ export default function TablesView() {
       setLocalTables(tables);
     }
   }, [tables]);
-
-  useEffect(() => {
-    if (selectedTable && selectedView) {
-      void refetchRows();
-    }
-  }, [selectedTable, selectedView, refetchRows]);
 
   useEffect(() => {
     if (toolBarColumns) {
@@ -114,12 +110,12 @@ export default function TablesView() {
   }, [columns]);
 
   useEffect(() => {
-    if (dataInfinite?.pages[0]) {
+    if (rowData?.pages[0]) {
       setLocalRows(
-        dataInfinite.pages.flatMap((page) => ("data" in page ? page.data : [])),
+        rowData.pages.flatMap((page) => ("data" in page ? page.data : [])),
       );
     }
-  }, [dataInfinite]);
+  }, [rowData]);
 
   useEffect(() => {
     if (views) {
@@ -155,16 +151,14 @@ export default function TablesView() {
       setIsCreatingTable(true);
       const previousTables = localTables;
 
-      setLocalTables((prevTables) => {
-        return [
-          ...prevTables,
-          {
-            id: "temp",
-            name: data.name,
-            baseId,
-          },
-        ];
-      });
+      setLocalTables([
+        ...localTables,
+        {
+          id: "temp",
+          name: data.name,
+          baseId,
+        },
+      ]);
       setSelectedTable("temp");
 
       return { previousTables };
@@ -216,6 +210,7 @@ export default function TablesView() {
                 setSelectedTable(table.id);
                 void refetchColumns();
                 void refetchViews();
+                void refetchRows();
               }}
             >
               <div
@@ -253,7 +248,7 @@ export default function TablesView() {
 
       <Toolbar
         selectedTable={selectedTable}
-        columns={localToolBarColumns ?? []}
+        allColumns={localToolBarColumns ?? []}
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
         sorting={sorting}
@@ -308,7 +303,7 @@ export default function TablesView() {
             fetchNextPage={fetchNextPage}
             isFetching={isFetching}
             isLoading={isLoading}
-            dataInfinite={dataInfinite}
+            dataInfinite={rowData}
           />
         )}
       </div>
