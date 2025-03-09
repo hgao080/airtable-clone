@@ -224,7 +224,7 @@ export default function Table({
   const updateCell = api.cell.updateCell.useMutation({
     onMutate: async (updatedCell) => {
       await queryClient.cancelQueries({
-        queryKey: ["rows", tableId],
+        queryKey: ["rows", tableId, selectedView, columnFilters, sorting],
       });
 
       const previousRows = queryClient.getQueryData<{
@@ -280,20 +280,17 @@ export default function Table({
 
       return { previousRows };
     },
-    onError: (updatedCell, input, context) => {
-      queryClient.setQueryData(
-        ["rows", tableId, selectedView, columnFilters, sorting],
-        context?.previousRows,
-      );
-      if (context?.previousRows) {
-        setLocalTableRows(
-          context.previousRows?.pages?.flatMap((page) => page.data || []) || [],
-        );
-      }
-    },
-    onSuccess: () => {
-      
-    }
+    // onError: (updatedCell, input, context) => {
+    //   queryClient.setQueryData(
+    //     ["rows", tableId, selectedView, columnFilters, sorting],
+    //     context?.previousRows,
+    //   );
+    //   if (context?.previousRows) {
+    //     setLocalTableRows(
+    //       context.previousRows?.pages?.flatMap((page) => page.data || []) || [],
+    //     );
+    //   }
+    // },
   });
 
   const handleCreateColumn = () => {
