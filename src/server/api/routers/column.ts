@@ -32,6 +32,24 @@ export const columnRouter = createTRPCRouter({
 
         await prisma.cell.createMany({ data: newCells });
 
+        const views = await prisma.view.findMany({
+          where: { tableId: input.tableId },
+        });
+
+        for (const view of views) {
+          const updatedColumnVisibility = {
+            ...(typeof view.columnVisibility === 'object' && view.columnVisibility !== null ? view.columnVisibility : {}),
+            [newColumn.id]: true,
+          };
+      
+          await prisma.view.update({
+            where: { id: view.id },
+            data: {
+              columnVisibility: updatedColumnVisibility,
+            },
+          });
+        }
+
         return prisma.column.findFirst({
           where: { id: newColumn.id },
           include: { cells: true },

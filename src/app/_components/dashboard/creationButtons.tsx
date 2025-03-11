@@ -11,13 +11,15 @@ export function CreationButtons() {
     const router = useRouter();
 
     const createBase = api.base.createBase.useMutation({
+        onMutate: () => {
+            router.push("/base?baseId=creating");
+        },
         onSuccess: (newBase) => {
             router.push(`/base?baseId=${newBase.id}`);
         },
     })
 
     const handleCreateBase = () => {
-        router.push("/base?baseId=creating")
         createBase.mutate({ name: "Unititled Base" });
     }
 

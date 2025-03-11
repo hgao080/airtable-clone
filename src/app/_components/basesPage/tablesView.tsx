@@ -11,120 +11,128 @@ import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
 import { Column, Row, Table as TableType, View } from "@prisma/client";
-import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { getQueryClient } from "~/app/_providers/getQueryClient";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
 const fetchSize = 50;
 
 export default function TablesView() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
-  const queryClient = getQueryClient();
-
+  const router = useRouter();
   const trpc = api.useUtils();
+  const queryClient = useQueryClient();
 
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
-
   const [selectedTableId, setSelectedTableId] = useState<string>("");
-  const [selectedView, setSelectedView] = useState<string>("");
-
+  const [selectedView, setSelectedView] = useState<string>("Grid View");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<
     Record<string, boolean>
   >({});
-
   const [localViews, setLocalViews] = useState<View[]>([]);
   const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
-
   const [localTables, setLocalTables] = useState<TableType[]>([]);
   const [localToolBarColumns, setLocalToolBarColumns] = useState<Column[]>([]);
-
   const [isCreatingTable, setIsCreatingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const {
-    data: rowData,
-    fetchNextPage,
-    isFetching,
-    isLoading,
-  } = useInfiniteQuery({
-    queryKey: ["rows", selectedTableId],
-    queryFn: async ({ pageParam = 0 }) => {
-      const start = (pageParam as number) * fetchSize;
-      return await trpc.row.getRows.fetch({
-        tableId: selectedTableId,
-        start,
-        size: fetchSize,
-      });
-    },
-    enabled: !!selectedTableId,
-    initialPageParam: 0,
-    getNextPageParam: (_lastGroup, groups) => groups.length,
-    refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
-  });
 
   const { data: tables } = api.table.getTablesByBase.useQuery({
     baseId,
   });
-  const { data: columns, refetch: refetchColumns } =
-    api.column.getVisibleColumns.useQuery({
-      tableId: selectedTableId,
-      viewId: selectedView,
-    });
   const { data: views, refetch: refetchViews } =
     api.view.getViewsByTable.useQuery({
       tableId: selectedTableId,
+    });
+  
+  const { data: columns, isFetching: isFetchingColumns, refetch: refetchColumns } =
+    api.column.getVisibleColumns.useQuery({
+      tableId: selectedTableId,
+      viewId: selectedView,
     });
   const { data: toolBarColumns, refetch: refetchToolBarColumns } =
     api.column.getColumns.useQuery({
       tableId: selectedTableId,
     });
 
+  useEffect(() => {
+    if (tables) {
+      setLocalTables(tables);
+      setSelectedTableId(tables[tables.length - 1]?.id ?? "");
+    }
+  }, [tables]);
+
+  useEffect(() => {
+    if (selectedTableId) {
+      void refetchViews();
+    }
+  }, [selectedTableId])
+
+  useEffect(() => {
+    if (views) {
+      setLocalViews(views);
+      setSelectedView(views[views.length - 1]?.id ?? "");
+    }
+  }, [views])
+
+  useEffect(() => {
+    if (selectedView) {
+      void refetchColumns();
+    }
+  }, [selectedView])
+
+  useEffect(() => {
+    if (columns) {
+      setLocalColumns(columns);
+    }
+  }, [columns]);
+
   if (!baseId) {
     router.back();
     return null;
   }
 
-  // const createTable = api.table.createTable.useMutation({
-  //   onMutate: (data) => {
-  //     setIsCreatingTable(true);
-  //     const previousTables = localTables;
+  const createTable = api.table.createTable.useMutation({
+    onMutate: (data) => {
+      setIsCreatingTable(true);
+      const previousTables = localTables;
 
-  //     setLocalTables([
-  //       ...localTables,
-  //       {
-  //         id: "temp",
-  //         name: data.name,
-  //         baseId,
-  //       },
-  //     ]);
-  //     setSelectedTable("temp");
+      setLocalTables([
+        ...localTables,
+        {
+          id: "temp",
+          name: data.name,
+          baseId,
+        },
+      ]);
+      setSelectedTableId("temp");
 
-  //     return { previousTables };
-  //   },
-  //   onError: (err, data, context) => {
-  //     setIsCreatingTable(false);
-  //     setLocalTables(context?.previousTables ?? []);
-  //   },
-  //   onSuccess: (createdTable) => {
-  //     setIsCreatingTable(false);
-  //     setSelectedTable(createdTable.id);
-  //     setLocalTables([
-  //       ...localTables.filter((table) => table.id !== "temp"),
-  //       createdTable,
-  //     ]);
-  //   },
-  // });
+      return { previousTables };
+    },
+    onError: (err, data, context) => {
+      setIsCreatingTable(false);
+      setLocalTables(context?.previousTables ?? []);
+    },
+    onSuccess: (createdTable) => {
+      setIsCreatingTable(false);
+      setLocalTables([
+        ...localTables.filter((table) => table.id !== "temp"),
+        createdTable,
+      ]);
+      setSelectedTableId(createdTable.id);
+    },
+  });
 
-  // const handleCreateTable = () => {
-  //   createTable.mutate({
-  //     baseId,
-  //     name: "Table " + (tables ? tables.length + 1 : 0),
-  //   });
-  // };
+  const handleCreateTable = () => {
+    createTable.mutate({
+      baseId,
+      name: "Table " + (tables ? tables.length + 1 : 0),
+    });
+  };
+
+  const handleSwitchTable = (tableId: string) => {
+    setSelectedTableId(tableId);
+  }
 
   if (baseId === "creating") {
     return (
@@ -145,12 +153,7 @@ export default function TablesView() {
               key={table.id}
               value={table.id}
               className="flex items-center"
-              onClick={() => {
-                queryClient.removeQueries({ queryKey: ["rows"] });
-                setLocalColumns([]);
-                setLocalViews([]);
-                setSelectedTableId(table.id);
-              }}
+              onClick={() => handleSwitchTable(table.id)}
             >
               <div
                 className={`flex items-center justify-center gap-2 px-3 py-2 text-[0.75rem] ${table.id === selectedTableId ? "rounded-t-sm bg-white text-black" : "text-white hover:bg-rose-800"}`}
@@ -168,7 +171,7 @@ export default function TablesView() {
           </button>
           <div className="h-[12px] w-[1px] bg-white/20"></div>
           <button
-            // onClick={handleCreateTable}
+            onClick={handleCreateTable}
             className="flex items-center gap-2 pl-4 text-[0.75rem] font-light text-white"
             disabled={isCreatingTable}
           >
@@ -226,25 +229,22 @@ export default function TablesView() {
         </div>
         */}
 
-        {selectedTableId && (
-          <Table
-            tableId={selectedTableId}
-            rowData={rowData}
-            selectedView={selectedView}
-            searchQuery={searchQuery}
-            sorting={sorting}
-            columnFilters={columnFilters}
-            setColumnFilters={setColumnFilters}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibility}
-            setLocalToolBarColumns={setLocalToolBarColumns}
-            localTableColumns={localColumns}
-            setLocalTableColumns={setLocalColumns}
-            fetchNextPage={fetchNextPage}
-            isFetching={isFetching}
-            isLoading={isLoading}
-          />
-        )}
-      </div>
+      {selectedTableId && (
+        <Table
+          tableId={selectedTableId}
+          localColumns={localColumns}
+          setLocalColumns={setLocalColumns}
+          isFetchingColumns={isFetchingColumns}
+          selectedView={selectedView}
+          searchQuery={searchQuery}
+          sorting={sorting}
+          columnFilters={columnFilters}
+          setColumnFilters={setColumnFilters}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          setLocalToolBarColumns={setLocalToolBarColumns}
+        />
+      )}
+    </div>
   );
 }

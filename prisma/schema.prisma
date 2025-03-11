@@ -125,14 +125,13 @@ model Row {
 }
 
 model Cell {
-  id       String @id @default(uuid())
   value    String
   columnId String
   column   Column @relation(fields: [columnId], references: [id], onDelete: Cascade)
   rowId    String
   row      Row    @relation(fields: [rowId], references: [id], onDelete: Cascade)
 
-  @@index([columnId, value]) // Optimizes search and filtering
+  @@id ([columnId, rowId])
 }
 
 enum ColumnType {
