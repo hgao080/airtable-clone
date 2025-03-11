@@ -77,12 +77,19 @@ export const rowRouter = createTRPCRouter({
     }),
 
   getRows: protectedProcedure
-    .input(z.object({ tableId: z.string() }))
+    .input(z.object({ tableId: z.string(), start: z.number(), size: z.number() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.row.findMany({
+      const rows = await ctx.db.row.findMany({
         where: { tableId: input.tableId },
         include: { cells: true },
       });
+
+      return {
+        data: rows.slice(input.start, input.start + input.size),
+        meta: {
+          totalRowCount: rows.length,
+        },
+      }
     }),
 
   getRowsFilteredSorted: protectedProcedure

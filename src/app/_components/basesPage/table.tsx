@@ -12,10 +12,15 @@ import {
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
-import { Cell } from "@prisma/client";
+import { Cell, Row } from "@prisma/client";
+
+type RowWithCells = Row & {
+  cells: Cell[]
+}
 
 interface TableProps {
   tableId: string;
+  rowData: any;
   selectedView: string;
   searchQuery: string;
   sorting: SortingState;
@@ -26,17 +31,14 @@ interface TableProps {
   setLocalToolBarColumns: (newColumns: any[]) => void;
   localTableColumns: any[];
   setLocalTableColumns: (newColumns: any[]) => void;
-  localTableRows: any[];
-  setLocalTableRows: (newRows: any[]) => void;
   fetchNextPage: () => void;
   isFetching: boolean;
   isLoading: boolean;
-  dataInfinite: any;
-  refetchRows: () => void;
 }
 
 export default function Table({
   tableId,
+  rowData,
   selectedView,
   searchQuery,
   sorting,
@@ -46,15 +48,13 @@ export default function Table({
   setLocalToolBarColumns,
   localTableColumns,
   setLocalTableColumns,
-  localTableRows,
-  setLocalTableRows,
   fetchNextPage,
   isFetching,
   isLoading,
-  dataInfinite,
-  refetchRows,
 }: TableProps) {
   const queryClient = useQueryClient();
+
+  const [localRows, setLocalRows] = useState<RowWithCells[]>([]);
 
   const [showColumnModal, setShowColumnModal] = useState(false);
 
@@ -63,6 +63,12 @@ export default function Table({
 
   const [columnName, setColumnName] = useState("");
   const [columnType, setColumnType] = useState<"TEXT" | "NUMBER">("TEXT");
+
+  useEffect(() => {
+    if (rowData) {
+      setLocalRows(rowData?.pages?.flatMap((page: { data: any; }) => page.data) ?? [])
+    }
+  }, [rowData])
 
   const updateColumnVisibility = api.view.updateColumnVisibility.useMutation();
 
@@ -90,8 +96,8 @@ export default function Table({
 
       setLocalTableColumns([...localTableColumns, placeholderColumn]);
 
-      setLocalTableRows([
-        ...localTableRows.map((row) => ({
+      setLocalRows([
+        ...localRows.map((row) => ({
           ...row,
           cells: [
             ...row.cells,
@@ -147,24 +153,24 @@ export default function Table({
         createdColumn,
       ]);
 
-      setLocalTableRows([
-        ...localTableRows.map((row) => ({
-          ...row,
-          cells: [
-            ...row.cells.map((cell: Cell) => {
-              if (cell.columnId === context?.tempId) {
-                return {
-                  value: "",
-                  id: createdColumn.cells.find((c) => c.rowId === row.id)?.id,
-                  columnId: createdColumn.id,
-                  rowId: row.id,
-                };
-              }
-              return cell;
-            }),
-          ],
-        })),
-      ]);
+      // setLocalRows([
+      //   ...localRows.map((row) => ({
+      //     ...row,
+      //     cells: [
+      //       ...row.cells.map((cell: Cell) => {
+      //         if (cell.columnId === context?.tempId) {
+      //           return {
+      //             value: "",
+      //             id: createdColumn.cells.find((c) => c.rowId === row.id)?.id,
+      //             columnId: createdColumn.id,
+      //             rowId: row.id,
+      //           };
+      //         }
+      //         return cell;
+      //       }),
+      //     ],
+      //   })),
+      // ]);
 
       setIsCreatingColumn(false);
     },
@@ -173,7 +179,7 @@ export default function Table({
   const createRow = api.row.addRow.useMutation({
     onMutate: () => {
       setIsCreatingRow(true);
-      const previousRows = localTableRows;
+      const previousRows = localRows;
 
       const tempId = `temp-row-${Date.now()}`;
       const placeholderRow = {
@@ -188,7 +194,7 @@ export default function Table({
         })),
       };
 
-      setLocalTableRows([...localTableRows, placeholderRow]);
+      setLocalRows([...localRows, placeholderRow]);
 
       return { previousRows, tempId };
     },
@@ -196,16 +202,16 @@ export default function Table({
       setIsCreatingRow(false);
 
       if (context?.previousRows) {
-        setLocalTableRows(context.previousRows);
+        setLocalRows(context.previousRows);
       }
     },
     onSuccess: (createdRow, data, context) => {
       setIsCreatingRow(false);
 
-      setLocalTableRows([
-        ...localTableRows.filter((row) => row.id !== context?.tempId),
-        createdRow,
-      ]);
+      // setLocalRows([
+      //   ...localRows.filter((row) => row.id !== context?.tempId),
+      //   createdRow,
+      // ]);
     },
   });
 
@@ -217,7 +223,6 @@ export default function Table({
     onSuccess: (data) => {
       setIsCreatingRow(false);
       console.log(data?.message);
-      void refetchRows();
     },
   });
 
@@ -258,8 +263,8 @@ export default function Table({
         },
       );
 
-      setLocalTableRows([
-        ...localTableRows.map((row) => {
+      setLocalRows([
+        ...localRows.map((row) => {
           if (row.id === updatedCell.rowId) {
             return {
               ...row,
@@ -426,15 +431,12 @@ export default function Table({
     [localTableColumns, searchQuery, isCreatingColumn, isCreatingRow, selectedView],
   );
 
+  const totalDBRowCount = rowData?.pages?.[0]?.meta?.totalRowCount ?? 0
+  const totalFetched = localRows.length;
+
   const data = useMemo(
     () =>
-      localTableRows.map((row) => {
-        if (!row || !row.cells) {
-          return {};
-        }
-
-        const rowData: Record<string, any> = {};
-
+      localRows.map((row) => {
         row.cells.forEach((cell: Cell) => {
           const columnDef = localTableColumns.find(
             (col) => col.id === cell.columnId,
@@ -444,11 +446,8 @@ export default function Table({
         });
         return { id: row.id, ...rowData };
       }),
-    [localTableRows, selectedView],
+    [localRows, selectedView],
   );
-
-  const totalDBRowCount = dataInfinite?.pages?.[0]?.meta?.totalRowCount ?? 0;
-  const totalFetched = localTableRows.length;
 
   const fetchMoreOnBottomReached = useCallback(
     (tableContainerRef?: HTMLDivElement | null) => {

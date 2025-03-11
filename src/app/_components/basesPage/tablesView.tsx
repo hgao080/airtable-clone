@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
@@ -10,7 +10,7 @@ import Toolbar from "./toolbar";
 import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
-import { Column, Row } from "@prisma/client";
+import { Column, Row, Table as TableType, View } from "@prisma/client";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { getQueryClient } from "~/app/_providers/getQueryClient";
 
@@ -25,9 +25,8 @@ export default function TablesView() {
   const trpc = api.useUtils();
 
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
-  const [localRows, setLocalRows] = useState<Row[]>([]);
 
-  const [selectedTable, setSelectedTable] = useState<string>("");
+  const [selectedTableId, setSelectedTableId] = useState<string>("");
   const [selectedView, setSelectedView] = useState<string>("");
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -36,26 +35,31 @@ export default function TablesView() {
     Record<string, boolean>
   >({});
 
+  const [localViews, setLocalViews] = useState<View[]>([]);
+  const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
+
+  const [localTables, setLocalTables] = useState<TableType[]>([]);
+  const [localToolBarColumns, setLocalToolBarColumns] = useState<Column[]>([]);
+
+  const [isCreatingTable, setIsCreatingTable] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const {
     data: rowData,
     fetchNextPage,
     isFetching,
     isLoading,
-    refetch: refetchRows,
   } = useInfiniteQuery({
-    queryKey: ["rows", selectedTable, selectedView, columnFilters, sorting],
+    queryKey: ["rows", selectedTableId],
     queryFn: async ({ pageParam = 0 }) => {
       const start = (pageParam as number) * fetchSize;
-      return await trpc.row.getRowsFilteredSorted.fetch({
-        tableId: selectedTable,
-        viewId: selectedView,
+      return await trpc.row.getRows.fetch({
+        tableId: selectedTableId,
         start,
         size: fetchSize,
-        columnFilters: columnFilters,
-        sorting: sorting,
       });
     },
-    enabled: !!selectedTable && !!selectedView,
+    enabled: !!selectedTableId,
     initialPageParam: 0,
     getNextPageParam: (_lastGroup, groups) => groups.length,
     refetchOnWindowFocus: false,
@@ -67,135 +71,60 @@ export default function TablesView() {
   });
   const { data: columns, refetch: refetchColumns } =
     api.column.getVisibleColumns.useQuery({
-      tableId: selectedTable,
+      tableId: selectedTableId,
       viewId: selectedView,
     });
   const { data: views, refetch: refetchViews } =
     api.view.getViewsByTable.useQuery({
-      tableId: selectedTable,
+      tableId: selectedTableId,
     });
   const { data: toolBarColumns, refetch: refetchToolBarColumns } =
     api.column.getColumns.useQuery({
-      tableId: selectedTable,
+      tableId: selectedTableId,
     });
-
-  const [localViews, setLocalViews] = useState(views ?? []);
-  const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
-
-  const [localTables, setLocalTables] = useState(tables ?? []);
-  const [localToolBarColumns, setLocalToolBarColumns] = useState(
-    toolBarColumns ?? [],
-  );
-
-  const [isCreatingTable, setIsCreatingTable] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  useEffect(() => {
-    if (tables) {
-      setSelectedTable(tables[tables.length - 1]?.id ?? "");
-      setLocalTables(tables);
-    }
-  }, [tables]);
-
-  useEffect(() => {
-    if (selectedTable && selectedView) {
-      void refetchColumns();
-      void refetchToolBarColumns();
-    }
-  }, [selectedTable, selectedView, sorting, columnFilters]);
-
-  useEffect(() => {
-    if (selectedTable) {
-      void refetchViews();
-    }
-  }, [selectedTable]);
-
-  useEffect(() => {
-    if (toolBarColumns) {
-      setLocalToolBarColumns(toolBarColumns);
-    }
-  }, [toolBarColumns]);
-
-  useEffect(() => {
-    if (columns) {
-      setLocalColumns(columns);
-    }
-  }, [columns]);
-
-  useEffect(() => {
-    if (rowData?.pages[0]) {
-      setLocalRows(
-        rowData.pages.flatMap((page) => ("data" in page ? page.data : [])),
-      );
-    }
-  }, [rowData]);
-
-  useEffect(() => {
-    if (views) {
-      setLocalViews(views);
-      setSelectedView(views[0]?.id ?? "");
-    }
-  }, [views]);
-
-  useEffect(() => {
-    if (selectedView) {
-      setColumnVisibility(
-        (localViews?.find((view) => view.id === selectedView)
-          ?.columnVisibility as unknown as Record<string, boolean>) ?? {},
-      );
-      setSorting(
-        (localViews?.find((view) => view.id === selectedView)
-          ?.sortingState as unknown as SortingState) ?? [],
-      );
-      setColumnFilters(
-        (localViews?.find((view) => view.id === selectedView)
-          ?.columnFilters as unknown as ColumnFiltersState) ?? [],
-      );
-    }
-  }, [selectedView]);
 
   if (!baseId) {
     router.back();
     return null;
   }
 
-  const createTable = api.table.createTable.useMutation({
-    onMutate: (data) => {
-      setIsCreatingTable(true);
-      const previousTables = localTables;
+  // const createTable = api.table.createTable.useMutation({
+  //   onMutate: (data) => {
+  //     setIsCreatingTable(true);
+  //     const previousTables = localTables;
 
-      setLocalTables([
-        ...localTables,
-        {
-          id: "temp",
-          name: data.name,
-          baseId,
-        },
-      ]);
-      setSelectedTable("temp");
+  //     setLocalTables([
+  //       ...localTables,
+  //       {
+  //         id: "temp",
+  //         name: data.name,
+  //         baseId,
+  //       },
+  //     ]);
+  //     setSelectedTable("temp");
 
-      return { previousTables };
-    },
-    onError: (err, data, context) => {
-      setIsCreatingTable(false);
-      setLocalTables(context?.previousTables ?? []);
-    },
-    onSuccess: (createdTable) => {
-      setIsCreatingTable(false);
-      setSelectedTable(createdTable.id);
-      setLocalTables([
-        ...localTables.filter((table) => table.id !== "temp"),
-        createdTable,
-      ]);
-    },
-  });
+  //     return { previousTables };
+  //   },
+  //   onError: (err, data, context) => {
+  //     setIsCreatingTable(false);
+  //     setLocalTables(context?.previousTables ?? []);
+  //   },
+  //   onSuccess: (createdTable) => {
+  //     setIsCreatingTable(false);
+  //     setSelectedTable(createdTable.id);
+  //     setLocalTables([
+  //       ...localTables.filter((table) => table.id !== "temp"),
+  //       createdTable,
+  //     ]);
+  //   },
+  // });
 
-  const handleCreateTable = () => {
-    createTable.mutate({
-      baseId,
-      name: "Table " + (tables ? tables.length + 1 : 0),
-    });
-  };
+  // const handleCreateTable = () => {
+  //   createTable.mutate({
+  //     baseId,
+  //     name: "Table " + (tables ? tables.length + 1 : 0),
+  //   });
+  // };
 
   if (baseId === "creating") {
     return (
@@ -219,16 +148,15 @@ export default function TablesView() {
               onClick={() => {
                 queryClient.removeQueries({ queryKey: ["rows"] });
                 setLocalColumns([]);
-                setLocalRows([]);
                 setLocalViews([]);
-                setSelectedTable(table.id);
+                setSelectedTableId(table.id);
               }}
             >
               <div
-                className={`flex items-center justify-center gap-2 px-3 py-2 text-[0.75rem] ${table.id === selectedTable ? "rounded-t-sm bg-white text-black" : "text-white hover:bg-rose-800"}`}
+                className={`flex items-center justify-center gap-2 px-3 py-2 text-[0.75rem] ${table.id === selectedTableId ? "rounded-t-sm bg-white text-black" : "text-white hover:bg-rose-800"}`}
               >
                 {table.name}
-                {table.id === selectedTable ? (
+                {table.id === selectedTableId ? (
                   <SlArrowDown size={10} className="text-black" />
                 ) : null}
               </div>
@@ -240,7 +168,7 @@ export default function TablesView() {
           </button>
           <div className="h-[12px] w-[1px] bg-white/20"></div>
           <button
-            onClick={handleCreateTable}
+            // onClick={handleCreateTable}
             className="flex items-center gap-2 pl-4 text-[0.75rem] font-light text-white"
             disabled={isCreatingTable}
           >
@@ -257,7 +185,7 @@ export default function TablesView() {
         </div>
       </div>
 
-      <Toolbar
+      {/* <Toolbar
         selectedTable={selectedTable}
         allColumns={localToolBarColumns ?? []}
         searchQuery={searchQuery}
@@ -294,11 +222,14 @@ export default function TablesView() {
             setColumnFilters={setColumnFilters}
             setColumnVisibility={setColumnVisibility}
           />
-        )}
+          )}
+        </div>
+        */}
 
-        {selectedTable && (
+        {selectedTableId && (
           <Table
-            tableId={selectedTable}
+            tableId={selectedTableId}
+            rowData={rowData}
             selectedView={selectedView}
             searchQuery={searchQuery}
             sorting={sorting}
@@ -309,16 +240,11 @@ export default function TablesView() {
             setLocalToolBarColumns={setLocalToolBarColumns}
             localTableColumns={localColumns}
             setLocalTableColumns={setLocalColumns}
-            localTableRows={localRows ?? []}
-            setLocalTableRows={setLocalRows}
             fetchNextPage={fetchNextPage}
             isFetching={isFetching}
             isLoading={isLoading}
-            dataInfinite={rowData}
-            refetchRows={refetchRows}
           />
         )}
       </div>
-    </div>
   );
 }
