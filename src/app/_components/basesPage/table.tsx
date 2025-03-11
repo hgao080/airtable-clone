@@ -16,7 +16,8 @@ import {
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
-import { Cell, Column, Row } from "@prisma/client";
+import { Cell, Column, Row, View } from "@prisma/client";
+import { set } from "zod";
 
 type RowWithCells = Row & {
   cells: Cell[];
@@ -29,14 +30,10 @@ interface TableProps {
   localColumns: Column[];
   setLocalColumns: (newColumns: Column[]) => void;
   isFetchingColumns: boolean;
-  selectedView: string;
+  selectedView: View;
   searchQuery: string;
-  sorting: SortingState;
-  columnFilters: ColumnFiltersState;
-  setColumnFilters: (newColumnFilters: any) => void;
-  columnVisibility: Record<string, boolean>;
-  setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
-  setLocalToolBarColumns: (newColumns: any[]) => void;
+  allColumns: Column[];
+  setAllColumns: (newColumns: Column[]) => void;
 }
 
 export default function Table({
@@ -46,11 +43,8 @@ export default function Table({
   isFetchingColumns,
   selectedView,
   searchQuery,
-  sorting,
-  columnFilters,
-  columnVisibility,
-  setColumnVisibility,
-  setLocalToolBarColumns,
+  allColumns,
+  setAllColumns,
 }: TableProps) {
   const queryClient = useQueryClient();
   const trpc = api.useUtils();
@@ -70,15 +64,17 @@ export default function Table({
     isFetching,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: [tableId],
+    queryKey: [tableId, selectedView],
     queryFn: async ({ pageParam = 0 }) => {
       const start = (pageParam as number) * fetchSize;
       return await trpc.row.getRows.fetch({
         tableId: tableId,
         start,
         size: fetchSize,
+        view: selectedView,
       });
     },
+    enabled: !!tableId,
     initialPageParam: 0,
     getNextPageParam: (_lastGroup, groups) => groups.length,
     refetchOnWindowFocus: false,
@@ -128,10 +124,17 @@ export default function Table({
         return;
       }
 
-      setLocalRows((prevRows) => [
-        ...prevRows.filter((row) => row.id !== context.tempId),
-        createdRow,
-      ]);
+      queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
+        return {
+          ...oldData,
+          pages: [
+            {
+              ...oldData.pages[oldData.pages.length - 1],
+              data: [...oldData.pages[oldData.pages.length - 1].data, createdRow],
+            },
+          ],
+        };
+      });
     },
   });
   const handleCreateRow = () => {
@@ -158,6 +161,7 @@ export default function Table({
       };
 
       setLocalColumns([...localColumns, placeholderColumn]);
+      setAllColumns([...allColumns, placeholderColumn]);
 
       setLocalRows((prevRows) => [
         ...prevRows.map((row) => ({
@@ -192,27 +196,36 @@ export default function Table({
         ...localColumns.filter((col) => col.id !== context?.tempId),
         createdColumn,
       ]);
-
-      setLocalRows((prevRows) => [
-        ...prevRows.map((row) => ({
-          ...row,
-          cells: [
-            ...row.cells.map((cell) => {
-              if (cell.columnId === context.tempId) {
-                return {
-                  value: "",
-                  columnId: createdColumn.id,
-                  rowId: row.id,
-                };
-              }
-              return cell;
-            }),
-          ],
-        })),
+      setAllColumns([
+        ...allColumns.filter((col) => col.id !== context?.tempId),
+        createdColumn,
       ]);
+
+      queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any) => {
+            return {
+              ...page,
+              data: page.data.map((row: RowWithCells) => {
+                return {
+                  ...row,
+                  cells: [
+                    ...row.cells,
+                    {
+                      value: "",
+                      columnId: createdColumn.id,
+                      rowId: row.id,
+                    },
+                  ],
+                };
+              }),
+            };
+          }),
+        };
+      });
     },
   });
-
   const handleCreateColumn = () => {
     if (!columnName) {
       createColumn.mutate({
@@ -234,7 +247,6 @@ export default function Table({
   const handleOpenColumnModal = () => {
     setShowColumnModal(true);
   };
-
   const handleCloseColumnModal = () => {
     setShowColumnModal(false);
     setColumnName("");
@@ -254,7 +266,6 @@ export default function Table({
       console.log(data?.message);
     },
   });
-
   const handleAddBulkRows = () => {
     addBulkRows.mutate({
       tableId,
@@ -266,6 +277,7 @@ export default function Table({
     onSuccess: (updatedCell) => {
       queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
         return {
+          ...oldData,
           pages: oldData.pages.map((page: any) => {
             return {
               ...page,
@@ -376,7 +388,7 @@ export default function Table({
           }, {}),
         };
       }),
-    [localRows, selectedView],
+    [localRows],
   );
 
   const totalDBRowCount = rowData?.pages?.[0]?.meta?.totalRowCount ?? 0;
@@ -419,7 +431,8 @@ export default function Table({
     isLoading ||
     !localColumns ||
     !data ||
-    isFetchingColumns
+    isFetchingColumns ||
+    isFetching
   ) {
     return (
       <div className="flex h-full flex-auto items-center justify-center">

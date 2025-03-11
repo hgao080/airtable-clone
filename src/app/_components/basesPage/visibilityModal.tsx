@@ -1,4 +1,4 @@
-import { Column } from "@prisma/client";
+import { Column, View } from "@prisma/client";
 import { useState } from "react";
 import { GoQuestion } from "react-icons/go";
 import { PiToggleRightFill } from "react-icons/pi";
@@ -7,10 +7,9 @@ import { api } from "~/trpc/react";
 
 interface visibilityModalProps {
   ref: React.RefObject<HTMLDivElement>;
-  columns: any[];
-  columnVisibility: Record<string, boolean>;
-  setColumnVisibility: (newVisibility: Record<string, boolean>) => void;
-  selectedView: string;
+  allColumns: any[];
+  selectedView: View;
+  setSelectedView: (newView: View) => void;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
   refetchColumns: () => void;
@@ -20,10 +19,9 @@ interface visibilityModalProps {
 
 export default function VisiblityModal({
   ref,
-  columns,
-  setColumnVisibility,
-  columnVisibility,
+  allColumns,
   selectedView,
+  setSelectedView,
   localViews,
   setLocalViews,
   refetchColumns,
@@ -31,38 +29,42 @@ export default function VisiblityModal({
   setLocalColumns,
 }: visibilityModalProps) {
   const [searchField, setSearchField] = useState<string>("");
-  const filteredColumns = columns.filter((col) =>
+  const filteredColumns = allColumns.filter((col) =>
     col.name.toLowerCase().includes(searchField.toLowerCase()),
   );
+  const columnVisibility = selectedView.columnVisibility as Record<string, boolean>;
 
   const updateColumnVisibility = api.view.updateColumnVisibility.useMutation({
-    onSuccess: () => {
-      void refetchColumns();
+    onMutate: (newData) => {
+      setLocalViews(
+        localViews.map((view) => {
+          if (view.id === selectedView.id) {
+            return {
+              ...view,
+              columnVisibility: newData.columnVisibility,
+            };
+          }
+          return view;
+        }),
+      );
+      setSelectedView({
+        ...selectedView,
+        columnVisibility: newData.columnVisibility,
+      })
+      return { previousData: selectedView };
     },
   });
 
   const handleToggleVisibility = (columnId: string, columnName: string) => {
-    const newColumnVisibility = { ...columnVisibility,
+    const newColumnVisibility = {
+      ...columnVisibility,
       [columnId]: !columnVisibility[columnId],
-     };
+    };
 
     updateColumnVisibility.mutate({
-      viewId: selectedView,
+      viewId: selectedView.id,
       columnVisibility: newColumnVisibility,
     });
-
-    setLocalViews(
-      localViews.map((view) => {
-        if (view.id === selectedView) {
-          return {
-            ...view,
-            columnVisibility: newColumnVisibility,
-          };
-        }
-        return view;
-      }),
-    );
-    setColumnVisibility(newColumnVisibility);
   };
 
   return (

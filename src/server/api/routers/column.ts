@@ -67,13 +67,12 @@ export const columnRouter = createTRPCRouter({
     }),
 
   getVisibleColumns: protectedProcedure
-    .input(z.object({ tableId: z.string(), viewId: z.string() }))
+    .input(z.object({ tableId: z.string(), columnVisibility: z.record(z.string(), z.boolean()) }))
     .query(async ({ ctx, input }) => {
-      const view = await ctx.db.view.findUnique({
-        where: { id: input.viewId },
-      });
 
-      if (!view || !view.columnVisibility) {
+      const visibleColumnIds = Object.keys(input.columnVisibility).filter((key) => input.columnVisibility[key]);
+
+      if (visibleColumnIds.length === 0) {
         return [];
       }
 
@@ -81,14 +80,10 @@ export const columnRouter = createTRPCRouter({
         where: {
           tableId: input.tableId,
           id: {
-            in: Object.keys(
-              view.columnVisibility as Record<string, boolean>,
-            ).filter(
-              (key) => (view.columnVisibility as Record<string, boolean>)[key],
-            ),
-          },
+            in: visibleColumnIds,
+          }
         },
         orderBy: { created: "asc" },
-      });
+      })
     }),
 });

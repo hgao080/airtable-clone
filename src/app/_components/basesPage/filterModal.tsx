@@ -1,4 +1,4 @@
-import { Row } from "@prisma/client";
+import { Row, View } from "@prisma/client";
 import {
   useQueryClient,
 } from "@tanstack/react-query";
@@ -10,17 +10,12 @@ import { RiDraggable } from "react-icons/ri";
 import { api } from "~/trpc/react";
 
 interface FilterModalProps {
-  selectedTable: string;
   ref: React.RefObject<HTMLDivElement>;
   allColumns: any[];
-  columnFilters: ColumnFilter[];
-  setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
-  selectedView: string;
-  localViews: any[];
-  setLocalViews: (newViews: any[]) => void;
-  localRows: Row[];
-  setLocalRows: (newRows: Row[]) => void;
-  refetchRows: () => void;
+  selectedView: View;
+  setSelectedView: (newView: View) => void;
+  localViews: View[];
+  setLocalViews: (newViews: View[]) => void;
 }
 
 interface ColumnFilterValue {
@@ -78,18 +73,15 @@ const numberOperators = [
 ];
 
 export default function FilterModal({
-  selectedTable,
   ref,
   allColumns,
-  setColumnFilters,
-  columnFilters,
   selectedView,
+  setSelectedView,
   localViews,
   setLocalViews,
-  refetchRows,
 }: FilterModalProps) {
-  const queryClient = useQueryClient();
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const columnFilters = selectedView.columnFilters as unknown as ColumnFilter[];
 
   const [conditions, setConditions] = useState<Condition[]>(
     columnFilters?.map((filter, index) => ({
@@ -109,7 +101,7 @@ export default function FilterModal({
     onMutate: (data) => {
       setLocalViews(
         localViews.map((view) => {
-          if (view.id === selectedView) {
+          if (view.id === selectedView.id) {
             return {
               ...view,
               columnFilters: data.columnFilters,
@@ -118,9 +110,10 @@ export default function FilterModal({
           return view;
         }),
       );
-    },
-    onSuccess: (updatedView) => {
-      void refetchRows();
+      setSelectedView({
+        ...selectedView,
+        columnFilters: data.columnFilters,
+      });
     },
   });
 
@@ -131,10 +124,10 @@ export default function FilterModal({
     
     debounceTimerRef.current = setTimeout(() => {
       updateColumnFilters.mutate({
-        viewId: selectedView,
+        viewId: selectedView.id,
         columnFilters: newConditions,
       });
-    }, 500); // 1 second debounce
+    }, 1000);
   };
 
   useEffect(() => {
@@ -160,8 +153,6 @@ export default function FilterModal({
     });
 
     setConditions(newConditions);
-    setColumnFilters(newConditions);
-
     debouncedUpdateFilters(newConditions);
   };
 
@@ -183,8 +174,6 @@ export default function FilterModal({
     });
 
     setConditions(newConditions);
-    setColumnFilters(newConditions);
-
     debouncedUpdateFilters(newConditions);
   };
 
@@ -206,8 +195,6 @@ export default function FilterModal({
     });
 
     setConditions(newConditions);
-    setColumnFilters(newConditions);
-
     debouncedUpdateFilters(newConditions);
   };
 
@@ -220,13 +207,6 @@ export default function FilterModal({
         value: "",
       },
     };
-
-    const newConditions = [...conditions, newCondition];
-
-    updateColumnFilters.mutate({
-      viewId: selectedView,
-      columnFilters: newConditions,
-    });
 
     setConditions([...conditions, newCondition]);
   };
@@ -247,12 +227,11 @@ export default function FilterModal({
     });
 
     updateColumnFilters.mutate({
-      viewId: selectedView,
+      viewId: selectedView.id,
       columnFilters: updatedConditions,
     });
 
     setConditions(updatedConditions);
-    setColumnFilters(updatedConditions);
   };
 
   return (

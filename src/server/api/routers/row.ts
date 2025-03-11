@@ -2,6 +2,16 @@ import { Cell, Row } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { z } from "zod";
 
+interface ColumnFilterValue {
+  operator: string;
+  value: string;
+}
+
+interface Filter {
+  id: string;
+  value: ColumnFilterValue;
+}
+
 export const rowRouter = createTRPCRouter({
   addRow: protectedProcedure
     .input(z.object({ tableId: z.string() }))
@@ -77,19 +87,96 @@ export const rowRouter = createTRPCRouter({
     }),
 
   getRows: protectedProcedure
-    .input(z.object({ tableId: z.string(), start: z.number(), size: z.number() }))
+    .input(
+      z.object({ tableId: z.string(), start: z.number(), size: z.number(), view: z.object({ id: z.string(), columnFilters: z.array(z.any()) }) }),
+    )
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.row.findMany({
+      let rows = await ctx.db.row.findMany({
         where: { tableId: input.tableId },
         include: { cells: true },
       });
+
+      const columnFilters = input.view.columnFilters as Filter[];
+
+      if (columnFilters && columnFilters.length > 0) {
+        rows = rows.filter((row) => {
+          for (const filter of columnFilters) {
+            if (!filter) {
+              return true;
+            }
+
+            const cell = row.cells.find(
+              (cell) => cell.columnId === (filter as any).id,
+            );
+
+            if (!cell) {
+              return false;
+            }
+
+            const filterValue = filter as {
+              value: { operator: string; value: string };
+            };
+
+            switch (filterValue.value.operator) {
+              case "contains":
+                if (!filterValue.value.value) {
+                  return true;
+                }
+
+                if (!cell.value.includes(filterValue.value.value)) {
+                  return false;
+                }
+                break;
+              case "not_contains":
+                if (!filterValue.value.value) {
+                  return true;
+                }
+
+                if (cell.value.includes(filterValue.value.value)) {
+                  return false;
+                }
+                break;
+              case "equals":
+                if (!filterValue.value.value) {
+                  return true;
+                }
+
+                if (cell.value !== filterValue.value.value) {
+                  return false;
+                }
+                break;
+              case "is_empty":
+                return cell.value == "";
+              case "is_not_empty":
+                if (cell.value === "") {
+                  return false;
+                }
+                break;
+              case "greater_than":
+                if (Number(cell.value) <= Number(filterValue.value.value)) {
+                  return false;
+                }
+                break;
+              case "less_than":
+                if (Number(cell.value) >= Number(filterValue.value.value)) {
+                  return false;
+                }
+                break;
+              default:
+                break;
+            }
+          }
+
+          return true;
+        });
+      }
 
       return {
         data: rows.slice(input.start, input.start + input.size),
         meta: {
           totalRowCount: rows.length,
         },
-      }
+      };
     }),
 
   getRowsFilteredSorted: protectedProcedure
@@ -104,7 +191,6 @@ export const rowRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-
       const rows = await ctx.db.row.findMany({
         where: { tableId: input.tableId },
         include: { cells: true },
@@ -161,7 +247,7 @@ export const rowRouter = createTRPCRouter({
                 }
                 break;
               case "is_empty":
-                return cell.value == ""
+                return cell.value == "";
               case "is_not_empty":
                 if (cell.value === "") {
                   return false;

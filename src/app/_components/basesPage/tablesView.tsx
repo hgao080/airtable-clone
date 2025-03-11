@@ -11,7 +11,7 @@ import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
 import { Column, Row, Table as TableType, View } from "@prisma/client";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 const fetchSize = 50;
 
@@ -24,16 +24,11 @@ export default function TablesView() {
 
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string>("");
-  const [selectedView, setSelectedView] = useState<string>("Grid View");
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<
-    Record<string, boolean>
-  >({});
+  const [selectedView, setSelectedView] = useState<View>();
   const [localViews, setLocalViews] = useState<View[]>([]);
   const [isViewsModalOpen, setIsViewsModalOpen] = useState(false);
   const [localTables, setLocalTables] = useState<TableType[]>([]);
-  const [localToolBarColumns, setLocalToolBarColumns] = useState<Column[]>([]);
+  const [allColumns, setAllColumns] = useState<Column[]>([]);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -44,12 +39,14 @@ export default function TablesView() {
     api.view.getViewsByTable.useQuery({
       tableId: selectedTableId,
     });
-  
-  const { data: columns, isFetching: isFetchingColumns, refetch: refetchColumns } =
-    api.column.getVisibleColumns.useQuery({
-      tableId: selectedTableId,
-      viewId: selectedView,
-    });
+  const {
+    data: columns,
+    isFetching: isFetchingColumns,
+    refetch: refetchColumns,
+  } = api.column.getVisibleColumns.useQuery({
+    tableId: selectedTableId,
+    columnVisibility: selectedView?.columnVisibility as Record<string, boolean> ?? {},
+  });
   const { data: toolBarColumns, refetch: refetchToolBarColumns } =
     api.column.getColumns.useQuery({
       tableId: selectedTableId,
@@ -66,26 +63,32 @@ export default function TablesView() {
     if (selectedTableId) {
       void refetchViews();
     }
-  }, [selectedTableId])
+  }, [selectedTableId]);
 
   useEffect(() => {
     if (views) {
       setLocalViews(views);
-      setSelectedView(views[views.length - 1]?.id ?? "");
+      setSelectedView(views[0]);
     }
-  }, [views])
+  }, [views]);
 
   useEffect(() => {
     if (selectedView) {
       void refetchColumns();
     }
-  }, [selectedView])
+  }, [selectedView]);
 
   useEffect(() => {
     if (columns) {
       setLocalColumns(columns);
     }
   }, [columns]);
+
+  useEffect(() => {
+    if (toolBarColumns) {
+      setAllColumns(toolBarColumns);
+    }
+  }, [toolBarColumns]);
 
   if (!baseId) {
     router.back();
@@ -132,7 +135,7 @@ export default function TablesView() {
 
   const handleSwitchTable = (tableId: string) => {
     setSelectedTableId(tableId);
-  }
+  };
 
   if (baseId === "creating") {
     return (
@@ -188,32 +191,24 @@ export default function TablesView() {
         </div>
       </div>
 
-      {/* <Toolbar
-        selectedTable={selectedTable}
-        allColumns={localToolBarColumns ?? []}
+      {selectedView && <Toolbar
+        selectedTable={selectedTableId}
+        allColumns={allColumns}
         searchQuery={searchQuery}
         onSearchChange={(newQuery) => setSearchQuery(newQuery)}
-        sorting={sorting}
-        setSorting={setSorting}
         selectedView={selectedView}
+        setSelectedView={setSelectedView}
         localViews={localViews}
         setLocalViews={setLocalViews}
         refetchViews={refetchViews}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnFilters={columnFilters}
-        setColumnFilters={setColumnFilters}
         isViewsModalOpen={isViewsModalOpen}
         setIsViewsModalOpen={setIsViewsModalOpen}
         refetchColumns={refetchColumns}
         localColumns={localColumns}
         setLocalColumns={setLocalColumns}
-        localRows={localRows}
-        setLocalRows={setLocalRows}
-        refetchRows={refetchRows}
-      />
+      />}
 
-      <div className="flex flex-auto">
+      {/* <div className="flex flex-auto">
         {isViewsModalOpen && (
           <ViewsModal
             tableId={selectedTable}
@@ -225,11 +220,10 @@ export default function TablesView() {
             setColumnFilters={setColumnFilters}
             setColumnVisibility={setColumnVisibility}
           />
-          )}
-        </div>
-        */}
+        )}
+      </div> */}
 
-      {selectedTableId && (
+      {selectedTableId && selectedView && (
         <Table
           tableId={selectedTableId}
           localColumns={localColumns}
@@ -237,12 +231,8 @@ export default function TablesView() {
           isFetchingColumns={isFetchingColumns}
           selectedView={selectedView}
           searchQuery={searchQuery}
-          sorting={sorting}
-          columnFilters={columnFilters}
-          setColumnFilters={setColumnFilters}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          setLocalToolBarColumns={setLocalToolBarColumns}
+          allColumns={allColumns}
+          setAllColumns={setAllColumns}
         />
       )}
     </div>

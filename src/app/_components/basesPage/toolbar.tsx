@@ -12,35 +12,25 @@ import SearchModal from "./searchModal";
 import { useEffect, useRef, useState } from "react";
 import SortModal from "./sortModal";
 
-import { ColumnFilter, SortingState } from "@tanstack/react-table";
 import VisiblityModal from "./visibilityModal";
 import FilterModal from "./filterModal";
-import { Column, Row } from "@prisma/client";
-import { InfiniteData, QueryObserverResult } from "@tanstack/react-query";
+import { Column, Row, View } from "@prisma/client";
 
 interface ToolbarProps {
   selectedTable: string;
   allColumns: Column[];
   searchQuery: string;
   onSearchChange: (newQuery: string) => void;
-  sorting: SortingState;
-  setSorting: (newSorting: SortingState) => void;
+  selectedView: View;
+  setSelectedView: (newView: View) => void;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
   refetchViews: () => void;
-  setColumnVisibility: (newColumnVisibility: Record<string, boolean>) => void;
-  selectedView: string | undefined;
-  columnVisibility: Record<string, boolean>;
-  columnFilters: ColumnFilter[];
-  setColumnFilters: (newColumnFilters: ColumnFilter[]) => void;
   isViewsModalOpen: boolean;
   setIsViewsModalOpen: (isOpen: boolean) => void;
   refetchColumns: () => void;
   localColumns: Column[];
   setLocalColumns: (newColumns: Column[]) => void;
-  localRows: Row[];
-  setLocalRows: (newRows: Row[]) => void;
-  refetchRows: () => void
 }
 
 export default function Toolbar({
@@ -48,24 +38,16 @@ export default function Toolbar({
   allColumns,
   searchQuery,
   onSearchChange,
-  sorting,
-  setSorting,
-  setColumnVisibility,
-  columnVisibility,
-  columnFilters,
-  setColumnFilters,
+  selectedView,
+  setSelectedView,
   isViewsModalOpen,
   setIsViewsModalOpen,
-  selectedView,
   localViews,
   setLocalViews,
   refetchViews,
   refetchColumns,
   localColumns,
   setLocalColumns,
-  localRows,
-  setLocalRows,
-  refetchRows,
 }: ToolbarProps) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
@@ -142,10 +124,9 @@ export default function Toolbar({
             {isVisibilityModalOpen && (
               <VisiblityModal
                 ref={columnModalRef}
-                columns={allColumns ?? []}
-                columnVisibility={columnVisibility}
-                setColumnVisibility={setColumnVisibility}
-                selectedView={selectedView ?? ""}
+                allColumns={allColumns ?? []}
+                selectedView={selectedView}
+                setSelectedView={setSelectedView}
                 localViews={localViews}
                 setLocalViews={setLocalViews}
                 refetchColumns={refetchColumns}
@@ -166,17 +147,12 @@ export default function Toolbar({
               <p className="text-[0.75rem] font-medium">Filter</p>
             </button>
             {isFilterModalOpen && <FilterModal
-              selectedTable={selectedTable}
               ref={filterModalRef}
-              allColumns={allColumns ?? []}
-              columnFilters={columnFilters}
-              setColumnFilters={setColumnFilters}
+              allColumns={allColumns}
               localViews={localViews}
               setLocalViews={setLocalViews}
-              selectedView={selectedView ?? ""}
-              localRows={localRows}
-              setLocalRows={setLocalRows}
-              refetchRows={refetchRows}
+              selectedView={selectedView}
+              setSelectedView={setSelectedView}
             />}
           </div>
 
@@ -197,12 +173,9 @@ export default function Toolbar({
               selectedTable={selectedTable}
                 ref={sortModalRef}
                 columns={allColumns ?? []}
-                sorting={sorting}
-                setSorting={setSorting}
-                selectedView={selectedView ?? ""}
+                selectedView={selectedView}
                 localViews={localViews}
                 setLocalViews={setLocalViews}
-                refetchRows={refetchRows}
               />
             )}
           </div>
