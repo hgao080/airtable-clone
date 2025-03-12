@@ -11,7 +11,11 @@ import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
 import { Column, Row, Table as TableType, View } from "@prisma/client";
-import { useInfiniteQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 
 const fetchSize = 50;
 
@@ -45,7 +49,8 @@ export default function TablesView() {
     refetch: refetchColumns,
   } = api.column.getVisibleColumns.useQuery({
     tableId: selectedTableId,
-    columnVisibility: selectedView?.columnVisibility as Record<string, boolean> ?? {},
+    columnVisibility:
+      (selectedView?.columnVisibility as Record<string, boolean>) ?? {},
   });
   const { data: toolBarColumns, refetch: refetchToolBarColumns } =
     api.column.getColumns.useQuery({
@@ -191,50 +196,49 @@ export default function TablesView() {
         </div>
       </div>
 
-      {selectedView && <Toolbar
-        selectedTable={selectedTableId}
-        allColumns={allColumns}
-        searchQuery={searchQuery}
-        onSearchChange={(newQuery) => setSearchQuery(newQuery)}
-        selectedView={selectedView}
-        setSelectedView={setSelectedView}
-        localViews={localViews}
-        setLocalViews={setLocalViews}
-        refetchViews={refetchViews}
-        isViewsModalOpen={isViewsModalOpen}
-        setIsViewsModalOpen={setIsViewsModalOpen}
-        refetchColumns={refetchColumns}
-        localColumns={localColumns}
-        setLocalColumns={setLocalColumns}
-      />}
-
-      {/* <div className="flex flex-auto">
-        {isViewsModalOpen && (
-          <ViewsModal
-            tableId={selectedTable}
-            views={localViews}
-            setLocalViews={setLocalViews}
-            selectedView={selectedView ?? ""}
-            setSelectedView={setSelectedView}
-            setSorting={setSorting}
-            setColumnFilters={setColumnFilters}
-            setColumnVisibility={setColumnVisibility}
-          />
-        )}
-      </div> */}
-
-      {selectedTableId && selectedView && (
-        <Table
-          tableId={selectedTableId}
+      {selectedView && (
+        <Toolbar
+          selectedTable={selectedTableId}
+          allColumns={allColumns}
+          searchQuery={searchQuery}
+          onSearchChange={(newQuery) => setSearchQuery(newQuery)}
+          selectedView={selectedView}
+          setSelectedView={setSelectedView}
+          localViews={localViews}
+          setLocalViews={setLocalViews}
+          refetchViews={refetchViews}
+          isViewsModalOpen={isViewsModalOpen}
+          setIsViewsModalOpen={setIsViewsModalOpen}
+          refetchColumns={refetchColumns}
           localColumns={localColumns}
           setLocalColumns={setLocalColumns}
-          isFetchingColumns={isFetchingColumns}
-          selectedView={selectedView}
-          searchQuery={searchQuery}
-          allColumns={allColumns}
-          setAllColumns={setAllColumns}
         />
       )}
+
+      <div className="flex flex-auto">
+        {isViewsModalOpen && selectedView && (
+          <ViewsModal
+            tableId={selectedTableId}
+            views={localViews}
+            setLocalViews={setLocalViews}
+            selectedView={selectedView}
+            setSelectedView={setSelectedView}
+          />
+        )}
+
+        {selectedTableId && selectedView && (
+          <Table
+            tableId={selectedTableId}
+            localColumns={localColumns}
+            setLocalColumns={setLocalColumns}
+            isFetchingColumns={isFetchingColumns}
+            selectedView={selectedView}
+            searchQuery={searchQuery}
+            allColumns={allColumns}
+            setAllColumns={setAllColumns}
+          />
+        )}
+      </div>
     </div>
   );
 }

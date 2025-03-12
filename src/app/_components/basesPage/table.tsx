@@ -130,7 +130,10 @@ export default function Table({
           pages: [
             {
               ...oldData.pages[oldData.pages.length - 1],
-              data: [...oldData.pages[oldData.pages.length - 1].data, createdRow],
+              data: [
+                ...oldData.pages[oldData.pages.length - 1].data,
+                createdRow,
+              ],
             },
           ],
         };
@@ -284,8 +287,11 @@ export default function Table({
               data: page.data.map((row: RowWithCells) => {
                 return {
                   ...row,
-                  cells: row.cells.map((cell : Cell) => {
-                    if (cell.columnId === updatedCell.columnId && cell.rowId === updatedCell.rowId) {
+                  cells: row.cells.map((cell: Cell) => {
+                    if (
+                      cell.columnId === updatedCell.columnId &&
+                      cell.rowId === updatedCell.rowId
+                    ) {
                       return updatedCell;
                     }
                     return cell;
@@ -418,6 +424,9 @@ export default function Table({
   const table = useReactTable({
     data: data,
     columns: columns,
+    state: {
+      sorting: selectedView.sortingState as { id: string, desc: boolean }[],
+    },
     getCoreRowModel: getCoreRowModel(),
     manualFiltering: true,
     manualSorting: true,

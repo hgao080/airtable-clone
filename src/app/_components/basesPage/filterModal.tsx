@@ -98,7 +98,7 @@ export default function FilterModal({
   );
 
   const updateColumnFilters = api.view.updateColumnFilters.useMutation({
-    onMutate: (data) => {
+    onSuccess: (data) => {
       setLocalViews(
         localViews.map((view) => {
           if (view.id === selectedView.id) {

@@ -88,7 +88,7 @@ export const rowRouter = createTRPCRouter({
 
   getRows: protectedProcedure
     .input(
-      z.object({ tableId: z.string(), start: z.number(), size: z.number(), view: z.object({ id: z.string(), columnFilters: z.array(z.any()) }) }),
+      z.object({ tableId: z.string(), start: z.number(), size: z.number(), view: z.object({ id: z.string(), columnFilters: z.array(z.any()), sortingState: z.array(z.any()) }) }),
     )
     .query(async ({ ctx, input }) => {
       let rows = await ctx.db.row.findMany({
@@ -97,6 +97,7 @@ export const rowRouter = createTRPCRouter({
       });
 
       const columnFilters = input.view.columnFilters as Filter[];
+      const sorting = input.view.sortingState as { id: string; desc: boolean }[];
 
       if (columnFilters && columnFilters.length > 0) {
         rows = rows.filter((row) => {
@@ -168,6 +169,38 @@ export const rowRouter = createTRPCRouter({
           }
 
           return true;
+        });
+      }
+
+      if (sorting && sorting.length > 0) {
+        rows = rows.sort((a, b) => {
+          for (const sort of sorting) {
+            const cellA = a.cells.find(
+              (cell: Cell) => cell.columnId === sort.id,
+            );
+            const cellB = b.cells.find(
+              (cell: Cell) => cell.columnId === sort.id,
+            );
+
+            if (!cellA || !cellB) {
+              continue;
+            }
+
+            const valueA = isNaN(Number(cellA.value))
+              ? cellA.value
+              : Number(cellA.value);
+            const valueB = isNaN(Number(cellB.value))
+              ? cellB.value
+              : Number(cellB.value);
+
+            if (valueA < valueB) {
+              return sort.desc ? 1 : -1;
+            } else if (valueA > valueB) {
+              return sort.desc ? -1 : 1;
+            }
+          }
+
+          return 0;
         });
       }
 

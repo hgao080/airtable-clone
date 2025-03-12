@@ -1,17 +1,14 @@
+import { View } from "@prisma/client";
 import { GoSearch } from "react-icons/go";
-import { set } from "zod";
 
 import { api } from "~/trpc/react";
 
 interface ViewsModalProps {
-  views: any[];
+  views: View[];
   setLocalViews: (newViews: any[]) => void;
-  selectedView: string;
-  setSelectedView: (viewId: string) => void;
+  selectedView: View;
+  setSelectedView: (view: View) => void;
   tableId: string;
-  setSorting: (newSorting: any) => void;
-  setColumnFilters: (newColumnFilters: any) => void;
-  setColumnVisibility: (newColumnVisibility: any) => void;
 }
 
 export default function ViewsModal({
@@ -20,18 +17,19 @@ export default function ViewsModal({
   setSelectedView,
   tableId,
   setLocalViews,
-  setSorting,
-  setColumnFilters,
 }: ViewsModalProps) {
 
   const createView = api.view.createView.useMutation({
+    onMutate: (newView) => {
+      setLocalViews([...views, newView]);
+    },
     onSuccess: (createdView) => {
       setLocalViews(
         views.map((view) =>
-          view.id === "temp" ? createdView : view
+          view.name === createdView.name ? createdView : view
         )
       )
-      setSelectedView(createdView.id);
+      setSelectedView(createdView);
     },
   });
 
@@ -40,9 +38,6 @@ export default function ViewsModal({
       tableId: tableId,
       name: "View " + views.length,
     });
-
-    setLocalViews([...views, { name: "View " + views.length, id: "temp" }]);
-    setSelectedView("temp");
   };
 
   return (
@@ -59,10 +54,10 @@ export default function ViewsModal({
           {views?.map((view) => (
             <button
               onClick={() => {
-                setSelectedView(view.id)
+                setSelectedView(view)
               }}
-              key={view.id}
-              className={`flex flex-auto rounded-md px-2 py-1 text-[0.8rem] hover:bg-blue-100 ${selectedView === view.id ? "bg-blue-100" : ""}`}
+              key={view.name}
+              className={`flex flex-auto rounded-md px-2 py-1 text-[0.8rem] hover:bg-blue-100 ${selectedView.id === view.id ? "bg-blue-100" : ""}`}
             >
               {view.name}
             </button>

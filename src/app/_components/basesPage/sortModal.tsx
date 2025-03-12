@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { Column, View } from "@prisma/client";
 import { SortingState } from "@tanstack/react-table";
 import { GoQuestion } from "react-icons/go";
 
@@ -7,33 +7,29 @@ import { api } from "~/trpc/react";
 interface sortModalProps {
   selectedTable: string;
   ref: React.RefObject<HTMLDivElement>;
-  columns: any[];
-  sorting: SortingState
-  setSorting: (newSorting: any) => void;
-  selectedView: string;
-  localViews: any[];
+  allColumns: Column[];
+  selectedView: View;
+  setSelectedView: (newView: View) => void;
+  localViews: View[];
   setLocalViews: (newViews: any[]) => void;
-  refetchRows: () => void;
 }
 
 export default function SortModal({
   selectedTable,
   ref,
-  columns,
-  sorting,
-  setSorting,
+  allColumns,
   selectedView,
+  setSelectedView,
   localViews,
   setLocalViews,
-  refetchRows,
 }: sortModalProps) {
-  const queryClient = useQueryClient();
+  const sorting = selectedView.sortingState as { id: string, desc: boolean }[];
 
   const updateSortingState = api.view.updateSortingState.useMutation({
-    onMutate: (data) => {
+    onSuccess: (data) => {
       setLocalViews(
         localViews.map((view) => {
-          if (view.id === selectedView) {
+          if (view.id === selectedView.id) {
             return {
               ...view,
               sortingState: data.sortingState,
@@ -42,19 +38,17 @@ export default function SortModal({
           return view;
         }),
       );
+      setSelectedView({
+        ...selectedView,
+        sortingState: data.sortingState,
+      })
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["rows", selectedTable],
-      });
-      void refetchRows();
-    }
   });
 
   const handleToggleSort = (columnId: string) => {
-    const existingSort = sorting.find((sort: any) => sort.id === columnId);
+    const existingSort = sorting.find((sort) => sort.id === columnId);
 
-    let newSorting: SortingState
+    let newSorting: SortingState = [];
     if (!existingSort) {
       newSorting = [...sorting, { id: columnId, desc: false }];
     } else {
@@ -68,23 +62,9 @@ export default function SortModal({
     }
 
     updateSortingState.mutate({
-      viewId: selectedView,
+      viewId: selectedView.id,
       sortingState: newSorting
     })
-
-    setLocalViews(
-      localViews.map((view) => {
-        if (view.id === selectedView) {
-          return {
-            ...view,
-            sortingState: newSorting
-          }
-        }
-        return view;
-      })
-    )
-
-    setSorting(newSorting);
   };
 
   return (
@@ -105,7 +85,7 @@ export default function SortModal({
       <div className="h-[1px] w-full bg-gray-200"></div>
 
       <div className="flex flex-col items-start">
-        {columns.map((col) => (
+        {allColumns.map((col) => (
           <button
             onClick={() => handleToggleSort(col.id)}
             key={col.id}

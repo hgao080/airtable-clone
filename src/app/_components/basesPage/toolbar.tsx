@@ -172,8 +172,9 @@ export default function Toolbar({
               <SortModal
               selectedTable={selectedTable}
                 ref={sortModalRef}
-                columns={allColumns ?? []}
+                allColumns={allColumns}
                 selectedView={selectedView}
+                setSelectedView={setSelectedView}
                 localViews={localViews}
                 setLocalViews={setLocalViews}
               />
