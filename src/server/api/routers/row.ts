@@ -1,6 +1,8 @@
 import { Cell, Row } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
+import { table } from "console";
 
 interface ColumnFilterValue {
   operator: string;
@@ -45,8 +47,11 @@ export const rowRouter = createTRPCRouter({
   addBulkRows: protectedProcedure
     .input(z.object({ tableId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const COUNT = 1000;
+      const COUNT = 100000;
       const CHUNK_SIZE = 500;
+      const CHUNK_CONCURRENCY = 10;
+
+      const promises = []
 
       const columns = await ctx.db.column.findMany({
         where: { tableId: input.tableId },
@@ -56,29 +61,31 @@ export const rowRouter = createTRPCRouter({
         const chunkCount = Math.min(CHUNK_SIZE, COUNT - offset);
 
         const rowData = Array.from({ length: chunkCount }, () => ({
+          id: uuidv4(),
           tableId: input.tableId,
         }));
 
-        await ctx.db.$transaction(async (prisma) => {
-          await prisma.row.createMany({ data: rowData });
+        const cellData = rowData.flatMap((row) => 
+          columns.map((col) => ({
+            value: "",
+            columnId: col.id,
+            rowId: row.id,
+          }))
+        )
 
-          const newRows = await prisma.row.findMany({
-            where: { tableId: input.tableId },
-            select: { id: true },
-            orderBy: { created: "desc" },
-            take: chunkCount,
-          });
+        promises.push(ctx.db.$transaction([
+          ctx.db.row.createMany({ data: rowData }),
+          ctx.db.cell.createMany({ data: cellData }),
+        ]))
 
-          for (const column of columns) {
-            const cellData = newRows.map((row) => ({
-              value: "",
-              columnId: column.id,
-              rowId: row.id,
-            }));
+        if (promises.length >= CHUNK_CONCURRENCY) {
+          await Promise.all(promises);
+          promises.length = 0;
+        }
+      }
 
-            await prisma.cell.createMany({ data: cellData });
-          }
-        });
+      if (promises.length > 0) {
+        await Promise.all(promises);
       }
 
       return {
@@ -212,104 +219,73 @@ export const rowRouter = createTRPCRouter({
       };
     }),
 
-  getRowsFilteredSorted: protectedProcedure
+  getRowsOptimised: protectedProcedure
     .input(
       z.object({
         tableId: z.string(),
-        viewId: z.string(),
         start: z.number(),
         size: z.number(),
-        columnFilters: z.array(z.any()).optional(),
-        sorting: z.array(z.any()).optional(),
-      }),
+        view: z.object({
+          id: z.string(),
+          columnFilters: z.array(z.any()),
+          sortingState: z.array(z.any()),
+        })
+      })
     )
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.row.findMany({
-        where: { tableId: input.tableId },
-        include: { cells: true },
-      });
+      const { tableId, start, size, view } = input;
+      const { columnFilters, sortingState } = view;
 
-      let filters = input.columnFilters;
+      const filterConditions = columnFilters.map((filter) => {
+        if (!filter) return {};
 
-      let filteredSortedRows: any[] = rows;
-      if (filters && filters.length > 0) {
-        filteredSortedRows = rows.filter((row) => {
-          for (const filter of filters) {
-            if (!filter) {
-              return true;
-            }
+        const { id, value } = filter
+        const { operator, value: filterValue } = value;
 
-            const cell = row.cells.find(
-              (cell) => cell.columnId === (filter as any).id,
-            );
+        const filterCondition = (() => {
+          switch (operator) {
+            case "contains":
+              return { value: { contains: filterValue } };
+            case "not_contains":
+              return { NOT: { value: { contains: filterValue } } };
+            case "equals":
+              return { value: filterValue };
+            case "is_empty":
+              return { value: "" };
+            case "is_not_empty":
+              return { NOT: { value: "" } };
+            case "greater_than":
+              return { value: { gt: Number(filterValue) } };
+            case "less_than":
+              return { value: { lt: Number(filterValue) } };
+            default:
+              return {};            
+          }
+        })();
 
-            if (!cell) {
-              return false;
-            }
-
-            const filterValue = filter as {
-              value: { operator: string; value: string };
-            };
-
-            switch (filterValue.value.operator) {
-              case "contains":
-                if (!filterValue.value.value) {
-                  return true;
-                }
-
-                if (!cell.value.includes(filterValue.value.value)) {
-                  return false;
-                }
-                break;
-              case "not_contains":
-                if (!filterValue.value.value) {
-                  return true;
-                }
-
-                if (cell.value.includes(filterValue.value.value)) {
-                  return false;
-                }
-                break;
-              case "equals":
-                if (!filterValue.value.value) {
-                  return true;
-                }
-
-                if (cell.value !== filterValue.value.value) {
-                  return false;
-                }
-                break;
-              case "is_empty":
-                return cell.value == "";
-              case "is_not_empty":
-                if (cell.value === "") {
-                  return false;
-                }
-                break;
-              case "greater_than":
-                if (Number(cell.value) <= Number(filterValue.value.value)) {
-                  return false;
-                }
-                break;
-              case "less_than":
-                if (Number(cell.value) >= Number(filterValue.value.value)) {
-                  return false;
-                }
-                break;
-              default:
-                break;
+        return {
+          cells: {
+            some: {
+              columnId: id,
+              ...filterCondition,
             }
           }
+        }
+      })
 
-          return true;
-        });
-      }
+      let rows = await ctx.db.row.findMany({
+        where: {
+          tableId,
+          AND: filterConditions.length > 0 ? filterConditions : undefined,
+        },
+        include: { cells: true },
+        skip: start,
+        take: size,
+      })
 
-      let sorting = input.sorting;
-
-      if (sorting && sorting.length > 0) {
-        filteredSortedRows = filteredSortedRows.sort((a, b) => {
-          for (const sort of sorting) {
+      if (sortingState && sortingState.length > 0) {
+        rows = rows.sort((a, b) => {
+          for (const sort of sortingState) {
             const sortValue = sort as { id: string; desc: boolean };
             const cellA = a.cells.find(
               (cell: Cell) => cell.columnId === sortValue.id,
@@ -337,14 +313,22 @@ export const rowRouter = createTRPCRouter({
           }
 
           return 0;
-        });
+        })
       }
 
+
+      const totalRowCount = await ctx.db.row.count({
+        where: {
+          tableId,
+          AND: filterConditions.length > 0 ? filterConditions : undefined,
+        }
+      })
+
       return {
-        data: filteredSortedRows.slice(input.start, input.start + input.size),
+        data: rows,
         meta: {
-          totalRowCount: filteredSortedRows.length,
-        },
-      };
-    }),
+          totalRowCount,
+        }
+      }
+    })
 });

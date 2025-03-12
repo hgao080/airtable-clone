@@ -17,7 +17,6 @@ import {
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
 import { Cell, Column, Row, View } from "@prisma/client";
-import { set } from "zod";
 
 type RowWithCells = Row & {
   cells: Cell[];
@@ -67,7 +66,7 @@ export default function Table({
     queryKey: [tableId, selectedView],
     queryFn: async ({ pageParam = 0 }) => {
       const start = (pageParam as number) * fetchSize;
-      return await trpc.row.getRows.fetch({
+      return await trpc.row.getRowsOptimised.fetch({
         tableId: tableId,
         start,
         size: fetchSize,
@@ -440,8 +439,7 @@ export default function Table({
     isLoading ||
     !localColumns ||
     !data ||
-    isFetchingColumns ||
-    isFetching
+    isFetchingColumns
   ) {
     return (
       <div className="flex h-full flex-auto items-center justify-center">
