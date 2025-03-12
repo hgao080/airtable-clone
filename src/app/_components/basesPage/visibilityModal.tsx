@@ -12,9 +12,6 @@ interface visibilityModalProps {
   setSelectedView: (newView: View) => void;
   localViews: any[];
   setLocalViews: (newViews: any[]) => void;
-  refetchColumns: () => void;
-  localColumns: Column[];
-  setLocalColumns: (newColumns: any[]) => void;
 }
 
 export default function VisiblityModal({
@@ -24,9 +21,6 @@ export default function VisiblityModal({
   setSelectedView,
   localViews,
   setLocalViews,
-  refetchColumns,
-  localColumns,
-  setLocalColumns,
 }: visibilityModalProps) {
   const [searchField, setSearchField] = useState<string>("");
   const filteredColumns = allColumns.filter((col) =>

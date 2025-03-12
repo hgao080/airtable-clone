@@ -17,6 +17,7 @@ import {
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
 import { Cell, Column, Row, View } from "@prisma/client";
+import PreviousMap_ from "postcss/lib/previous-map";
 
 type RowWithCells = Row & {
   cells: Cell[];
@@ -30,6 +31,9 @@ interface TableProps {
   setLocalColumns: (newColumns: Column[]) => void;
   isFetchingColumns: boolean;
   selectedView: View;
+  setSelectedView: (newView: View) => void;
+  localViews: View[];
+  setLocalViews: (newViews: View[]) => void;
   searchQuery: string;
   allColumns: Column[];
   setAllColumns: (newColumns: Column[]) => void;
@@ -41,6 +45,9 @@ export default function Table({
   setLocalColumns,
   isFetchingColumns,
   selectedView,
+  setSelectedView,
+  localViews,
+  setLocalViews,
   searchQuery,
   allColumns,
   setAllColumns,
@@ -202,6 +209,25 @@ export default function Table({
         ...allColumns.filter((col) => col.id !== context?.tempId),
         createdColumn,
       ]);
+
+      setLocalViews([
+        ...localViews.map((view) => {
+            return {
+              ...view,
+              columnVisibility: {
+                ...view.columnVisibility as Record<string, boolean>,
+                [createdColumn.id]: true,
+              },
+            };
+        }),
+      ])
+      setSelectedView({
+        ...selectedView,
+        columnVisibility: {
+          ...selectedView.columnVisibility as Record<string, boolean>,
+          [createdColumn.id]: true,
+        }
+      })
 
       queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
         return {

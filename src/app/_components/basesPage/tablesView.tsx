@@ -9,13 +9,7 @@ import { FaPlus } from "react-icons/fa6";
 import Toolbar from "./toolbar";
 import Table from "./table";
 import ViewsModal from "./viewsModal";
-import { ColumnFiltersState, SortingState } from "@tanstack/react-table";
-import { Column, Row, Table as TableType, View } from "@prisma/client";
-import {
-  useInfiniteQuery,
-  useQueryClient,
-  keepPreviousData,
-} from "@tanstack/react-query";
+import { Column, Table as TableType, View } from "@prisma/client";
 
 const fetchSize = 50;
 
@@ -23,8 +17,6 @@ export default function TablesView() {
   const searchParams = useSearchParams();
   const baseId = searchParams.get("baseId");
   const router = useRouter();
-  const trpc = api.useUtils();
-  const queryClient = useQueryClient();
 
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string>("");
@@ -196,7 +188,7 @@ export default function TablesView() {
         </div>
       </div>
 
-      {selectedView && (
+      {selectedTableId && selectedView && (
         <Toolbar
           selectedTable={selectedTableId}
           allColumns={allColumns}
@@ -233,6 +225,9 @@ export default function TablesView() {
             setLocalColumns={setLocalColumns}
             isFetchingColumns={isFetchingColumns}
             selectedView={selectedView}
+            setSelectedView={setSelectedView}
+            localViews={localViews}
+            setLocalViews={setLocalViews}
             searchQuery={searchQuery}
             allColumns={allColumns}
             setAllColumns={setAllColumns}

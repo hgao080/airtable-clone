@@ -129,9 +129,6 @@ export default function Toolbar({
                 setSelectedView={setSelectedView}
                 localViews={localViews}
                 setLocalViews={setLocalViews}
-                refetchColumns={refetchColumns}
-                localColumns={localColumns}
-                setLocalColumns={setLocalColumns}
               />
             )}
           </div>
