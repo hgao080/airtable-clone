@@ -11,6 +11,9 @@ import Table from "./table";
 import ViewsModal from "./viewsModal";
 import { Column, Table as TableType, View } from "@prisma/client";
 
+import { RowWithCells } from "./table";
+import { set } from "zod";
+
 const fetchSize = 50;
 
 export default function TablesView() {
@@ -19,6 +22,7 @@ export default function TablesView() {
   const router = useRouter();
 
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
+  const [localRows, setLocalRows] = useState<RowWithCells[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string>("");
   const [selectedView, setSelectedView] = useState<View>();
   const [localViews, setLocalViews] = useState<View[]>([]);
@@ -131,6 +135,8 @@ export default function TablesView() {
   };
 
   const handleSwitchTable = (tableId: string) => {
+    setLocalRows([]);
+    setLocalColumns([]);
     setSelectedTableId(tableId);
   };
 
@@ -221,6 +227,8 @@ export default function TablesView() {
         {selectedTableId && selectedView && (
           <Table
             tableId={selectedTableId}
+            localRows={localRows}
+            setLocalRows={setLocalRows}
             localColumns={localColumns}
             setLocalColumns={setLocalColumns}
             isFetchingColumns={isFetchingColumns}

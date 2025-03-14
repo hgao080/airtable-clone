@@ -8,25 +8,31 @@ import {
 
 import {
   type ColumnDef,
-  type SortingState,
   flexRender,
   getCoreRowModel,
   useReactTable,
-  ColumnFiltersState,
 } from "@tanstack/react-table";
 import ColumnModal from "./columnModal";
 import TableBody from "./tableBody";
 import { Cell, Column, Row, View } from "@prisma/client";
-import PreviousMap_ from "postcss/lib/previous-map";
+import { toast } from "react-hot-toast";
 
-type RowWithCells = Row & {
+export type RowWithCells = Row & {
   cells: Cell[];
 };
 
-const fetchSize = 50;
+type pendingUpdate = {
+  rowId: string;
+  columnId: string;
+  value: string;
+};
+
+const fetchSize = 40;
 
 interface TableProps {
   tableId: string;
+  localRows: RowWithCells[];
+  setLocalRows: (newRows: RowWithCells[]) => void;
   localColumns: Column[];
   setLocalColumns: (newColumns: Column[]) => void;
   isFetchingColumns: boolean;
@@ -41,6 +47,8 @@ interface TableProps {
 
 export default function Table({
   tableId,
+  localRows,
+  setLocalRows,
   localColumns,
   setLocalColumns,
   isFetchingColumns,
@@ -55,9 +63,10 @@ export default function Table({
   const queryClient = useQueryClient();
   const trpc = api.useUtils();
 
-  const [localRows, setLocalRows] = useState<RowWithCells[]>([]);
   const [isCreatingColumn, setIsCreatingColumn] = useState(false);
   const [isCreatingRow, setIsCreatingRow] = useState(false);
+  const [isCreatingBulkRows, setIsCreatingBulkRows] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<pendingUpdate[]>([]);
 
   // States for adding a column
   const [showColumnModal, setShowColumnModal] = useState(false);
@@ -108,13 +117,27 @@ export default function Table({
         created: new Date(),
         cells: localColumns.map((col) => ({
           value: "",
-          id: `temp-cell-${col.id}`,
           columnId: col.id,
           rowId: tempId,
         })),
       };
 
       setLocalRows([...localRows, placeholderRow]);
+
+      queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any, index: number) => {
+            if (oldData.pages.length - 1 === index) {
+              return {
+                ...page,
+                data: [...page.data, placeholderRow],
+              };
+            }
+            return page;
+          }),
+        };
+      });
 
       return { previousRows, tableId, tempId };
     },
@@ -130,18 +153,59 @@ export default function Table({
         return;
       }
 
+      if (
+        pendingUpdates.length > 0 &&
+        pendingUpdates.some((update) => update.rowId === context.tempId)
+      ) {
+        const cellsToUpdate = pendingUpdates
+          .filter((update) => update.rowId === context.tempId)
+          .map((update) => {
+            return {
+              ...update,
+              rowId: createdRow.id,
+            };
+          });
+
+        setPendingUpdates((prev) =>
+          prev.filter((update) => update.rowId !== context.tempId),
+        );
+        cellsToUpdate.forEach((cell) => {
+          updateCell.mutate({
+            rowId: cell.rowId,
+            columnId: cell.columnId,
+            value: cell.value,
+          });
+        });
+      }
+
       queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
         return {
           ...oldData,
-          pages: [
-            {
-              ...oldData.pages[oldData.pages.length - 1],
-              data: [
-                ...oldData.pages[oldData.pages.length - 1].data,
-                createdRow,
-              ],
-            },
-          ],
+          pages: oldData.pages.map((page: any, index: number) => {
+            if (oldData.pages.length - 1 === index) {
+              return {
+                ...page,
+                data: [
+                  ...page.data.map((row: RowWithCells) => {
+                    if (row.id === context.tempId) {
+                      return {
+                        ...row,
+                        id: createdRow.id,
+                        cells: row.cells.map((cell: Cell) => {
+                          return {
+                            ...cell,
+                            rowId: createdRow.id,
+                          };
+                        }),
+                      };
+                    }
+                    return row;
+                  }),
+                ],
+              };
+            }
+            return page;
+          }),
         };
       });
     },
@@ -172,19 +236,34 @@ export default function Table({
       setLocalColumns([...localColumns, placeholderColumn]);
       setAllColumns([...allColumns, placeholderColumn]);
 
-      setLocalRows((prevRows) => [
-        ...prevRows.map((row) => ({
-          ...row,
-          cells: [
-            ...row.cells,
-            {
-              value: "",
-              columnId: tempId,
-              rowId: row.id,
-            },
-          ],
-        })),
-      ]);
+      queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any, index: number) => {
+            if (oldData.pages.length - 1 === index) {
+              return {
+                ...page,
+                data: [
+                  ...page.data.map((row: RowWithCells) => {
+                    return {
+                      ...row,
+                      cells: [
+                        ...row.cells,
+                        {
+                          value: "",
+                          columnId: tempId,
+                          rowId: row.id,
+                        },
+                      ],
+                    };
+                  }),
+                ],
+              };
+            }
+            return page;
+          }),
+        };
+      });
 
       return { previousColumns, previousRows, tableId, tempId };
     },
@@ -202,53 +281,100 @@ export default function Table({
       }
 
       setLocalColumns([
-        ...localColumns.filter((col) => col.id !== context?.tempId),
-        createdColumn,
+        ...localColumns.map((col) => {
+          if (col.id === context.tempId) {
+            return {
+              ...col,
+              id: createdColumn.id,
+            };
+          }
+          return col;
+        }),
       ]);
       setAllColumns([
-        ...allColumns.filter((col) => col.id !== context?.tempId),
-        createdColumn,
+        ...allColumns.map((col) => {
+          if (col.id === context.tempId) {
+            return {
+              ...col,
+              id: createdColumn.id,
+            };
+          }
+          return col;
+        }),
       ]);
 
       setLocalViews([
         ...localViews.map((view) => {
-            return {
-              ...view,
-              columnVisibility: {
-                ...view.columnVisibility as Record<string, boolean>,
-                [createdColumn.id]: true,
-              },
-            };
+          return {
+            ...view,
+            columnVisibility: {
+              ...(view.columnVisibility as Record<string, boolean>),
+              [createdColumn.id]: true,
+            },
+          };
         }),
-      ])
+      ]);
       setSelectedView({
         ...selectedView,
         columnVisibility: {
-          ...selectedView.columnVisibility as Record<string, boolean>,
+          ...(selectedView.columnVisibility as Record<string, boolean>),
           [createdColumn.id]: true,
-        }
-      })
+        },
+      });
+
+      if (
+        pendingUpdates.length > 0 &&
+        pendingUpdates.some((update) => update.columnId === context.tempId)
+      ) {
+        const cellsToUpdate = pendingUpdates
+          .filter((update) => update.columnId === context.tempId)
+          .map((update) => {
+            return {
+              ...update,
+              columnId: createdColumn.id,
+            };
+          });
+
+        setPendingUpdates((prev) =>
+          prev.filter((update) => update.columnId !== context.tempId),
+        );
+        cellsToUpdate.forEach((cell) => {
+          updateCell.mutate({
+            rowId: cell.rowId,
+            columnId: cell.columnId,
+            value: cell.value,
+          });
+        });
+      }
 
       queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
         return {
           ...oldData,
-          pages: oldData.pages.map((page: any) => {
-            return {
-              ...page,
-              data: page.data.map((row: RowWithCells) => {
-                return {
-                  ...row,
-                  cells: [
-                    ...row.cells,
-                    {
-                      value: "",
-                      columnId: createdColumn.id,
-                      rowId: row.id,
-                    },
-                  ],
-                };
-              }),
-            };
+          pages: oldData.pages.map((page: any, index: number) => {
+            if (oldData.pages.length - 1 === index) {
+              return {
+                ...page,
+                data: [
+                  ...page.data.map((row: RowWithCells) => {
+                    return {
+                      ...row,
+                      cells: [
+                        ...row.cells.map((cell) => {
+                          if (cell.columnId === context.tempId) {
+                            return {
+                              ...cell,
+                              columnId: createdColumn.id,
+                            };
+                          }
+                          return cell;
+                        }),
+                      ],
+                    };
+                  }),
+                ],
+              };
+            }
+            return page;
           }),
         };
       });
@@ -283,15 +409,15 @@ export default function Table({
 
   const addBulkRows = api.row.addBulkRows.useMutation({
     onMutate: () => {
-      setIsCreatingRow(true);
+      setIsCreatingBulkRows(true);
     },
     onError: (err) => {
-      setIsCreatingRow(false);
-      console.error(err);
+      setIsCreatingBulkRows(false);
+      toast.error("Error occurred while adding rows");
     },
     onSuccess: (data) => {
-      setIsCreatingRow(false);
-      console.log(data?.message);
+      setIsCreatingBulkRows(false);
+      toast.success(data?.message);
     },
   });
   const handleAddBulkRows = () => {
@@ -301,8 +427,7 @@ export default function Table({
   };
 
   const updateCell = api.cell.updateCell.useMutation({
-    onMutate: () => {},
-    onSuccess: (updatedCell) => {
+    onMutate: (data) => {
       queryClient.setQueriesData({ queryKey: [tableId] }, (oldData: any) => {
         return {
           ...oldData,
@@ -314,10 +439,13 @@ export default function Table({
                   ...row,
                   cells: row.cells.map((cell: Cell) => {
                     if (
-                      cell.columnId === updatedCell.columnId &&
-                      cell.rowId === updatedCell.rowId
+                      cell.columnId === data.columnId &&
+                      cell.rowId === data.rowId
                     ) {
-                      return updatedCell;
+                      return {
+                        ...cell,
+                        value: data.value.toString(),
+                      };
                     }
                     return cell;
                   }),
@@ -328,6 +456,7 @@ export default function Table({
         };
       });
     },
+    onSuccess: (updatedCell) => {},
   });
 
   const rowNumColumn: ColumnDef<any> = {
@@ -384,11 +513,45 @@ export default function Table({
           }, [initialValue]);
 
           const onBlur = () => {
-            updateCell.mutate({
-              rowId,
-              columnId,
-              value: value.toString(),
-            });
+            if (rowId.includes("temp") || columnId.includes("temp")) {
+              const doesPendingUpdateExist = pendingUpdates.some(
+                (update) =>
+                  update.rowId === rowId && update.columnId === columnId,
+              );
+
+              if (doesPendingUpdateExist) {
+                setPendingUpdates((prev) =>
+                  prev.map((update) => {
+                    if (
+                      update.rowId === rowId &&
+                      update.columnId === columnId
+                    ) {
+                      return {
+                        rowId,
+                        columnId,
+                        value,
+                      };
+                    }
+                    return update;
+                  }),
+                );
+              } else {
+                setPendingUpdates((prev) => [
+                  ...prev,
+                  {
+                    rowId,
+                    columnId,
+                    value,
+                  },
+                ]);
+              }
+            } else {
+              updateCell.mutate({
+                rowId,
+                columnId,
+                value: value.toString(),
+              });
+            }
           };
 
           return (
@@ -397,7 +560,6 @@ export default function Table({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onBlur={onBlur}
-              disabled={columnId.includes("temp") || rowId.includes("temp")}
               className={`z-50 w-0 flex-auto pl-1 text-[0.75rem] focus:outline-blue-500 ${isMatch ? "m-[-2px] bg-yellow-400" : ""}`}
             />
           );
@@ -405,7 +567,7 @@ export default function Table({
       })),
     ],
 
-    [localColumns, searchQuery, isCreatingColumn, isCreatingRow],
+    [localColumns, searchQuery],
   );
 
   const data = useMemo(
@@ -450,7 +612,7 @@ export default function Table({
     data: data,
     columns: columns,
     state: {
-      sorting: selectedView.sortingState as { id: string, desc: boolean }[],
+      sorting: selectedView.sortingState as { id: string; desc: boolean }[],
     },
     getCoreRowModel: getCoreRowModel(),
     manualFiltering: true,
@@ -464,12 +626,23 @@ export default function Table({
     tableId === "temp" ||
     isLoading ||
     !localColumns ||
-    !data ||
+    data.length == 0 ||
     isFetchingColumns
   ) {
     return (
       <div className="flex h-full flex-auto items-center justify-center">
         <div className="text-[0.75rem] text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (isCreatingBulkRows) {
+    return (
+      <div className="flex h-full flex-auto items-center justify-center">
+        <div className="text-[0.75rem] text-gray-500">Adding rows...</div>
+        <div className="text-[0.75rem] text-gray-500">
+          This will take approximately a minute
+        </div>
       </div>
     );
   }
