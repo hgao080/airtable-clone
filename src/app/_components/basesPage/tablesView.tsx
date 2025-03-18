@@ -12,9 +12,6 @@ import ViewsModal from "./viewsModal";
 import { Column, Table as TableType, View } from "@prisma/client";
 
 import { RowWithCells } from "./table";
-import { set } from "zod";
-
-const fetchSize = 50;
 
 export default function TablesView() {
   const searchParams = useSearchParams();

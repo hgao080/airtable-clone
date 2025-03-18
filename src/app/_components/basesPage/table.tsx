@@ -27,7 +27,7 @@ type pendingUpdate = {
   value: string;
 };
 
-const fetchSize = 40;
+const fetchSize = 25;
 
 interface TableProps {
   tableId: string;
@@ -410,6 +410,7 @@ export default function Table({
   const addBulkRows = api.row.addBulkRows.useMutation({
     onMutate: () => {
       setIsCreatingBulkRows(true);
+      toast.loading("Adding rows...");
     },
     onError: (err) => {
       setIsCreatingBulkRows(false);
@@ -417,6 +418,7 @@ export default function Table({
     },
     onSuccess: (data) => {
       setIsCreatingBulkRows(false);
+      toast.dismiss();
       toast.success(data?.message);
     },
   });
@@ -632,17 +634,6 @@ export default function Table({
     return (
       <div className="flex h-full flex-auto items-center justify-center">
         <div className="text-[0.75rem] text-gray-500">Loading...</div>
-      </div>
-    );
-  }
-
-  if (isCreatingBulkRows) {
-    return (
-      <div className="flex h-full flex-auto items-center justify-center">
-        <div className="text-[0.75rem] text-gray-500">Adding rows...</div>
-        <div className="text-[0.75rem] text-gray-500">
-          This will take approximately a minute
-        </div>
       </div>
     );
   }
